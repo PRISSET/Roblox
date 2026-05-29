@@ -39,19 +39,20 @@ extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND, UINT, WPARAM,
 static const char* GITHUB_RAW = "https://raw.githubusercontent.com/PRISSET/Roblox/main/bin/";
 static const char* kProductName = "Turtle.Club Loader";
 
-// Сделал окно повыше, чтобы поместился весь список без скролла.
+// Окно сделано компактным под 5 строк зависимостей.
 static constexpr int kInstallW = 520;
-static constexpr int kInstallH = 720;
-static constexpr int kMenuW   = 760;
-static constexpr int kMenuH   = 480;
+static constexpr int kInstallH = 540;
+static constexpr int kMenuW   = 820;
+static constexpr int kMenuH   = 560;
 static constexpr float kTitleBarH = 32.0f;
 
 // ============================================================
 // Типы зависимостей (как в installer_t)
 // ============================================================
 enum class dep_kind {
-    installer,   // exe-инсталлер, запускается тихо
-    raw_file,    // raw файл (.dll/.exe), просто копируется
+    installer,    // exe-инсталлер, запускается тихо
+    raw_file,     // одиночный raw файл
+    raw_group,    // группа raw файлов (все скачиваются вместе как один компонент)
 };
 
 enum class check_kind {
@@ -75,10 +76,17 @@ struct dependency_t {
     std::string reg_value;
     std::string version_prefix;
 
+    // Для raw_group: список (filename, base_url_unused). Все файлы качаются с GITHUB_RAW + filename
+    // и проверяются на наличие в install dir.
+    std::vector<std::string> group_files;
+
     bool installed = false;
     bool downloading = false;
     bool installing = false;
     float progress = 0.0f;
+    int  group_done = 0;     // сколько файлов из группы скачано (для прогресс-надписи)
+    int  group_total = 0;    // всего файлов в группе
+    bool failed = false;     // последняя попытка установки/скачивания провалилась
     std::string status;
 };
 
@@ -220,34 +228,37 @@ static void init_dependencies() {
     d.version_prefix = "8.";
     g_deps.push_back(d);
 
-    // ---- Raw файлы из GitHub ----
-    auto add_raw = [&](const char* name, const char* fname) {
-        dependency_t r{};
-        r.name = name;
-        r.kind = dep_kind::raw_file;
-        r.download_url = std::string(GITHUB_RAW) + fname;
-        r.dest_path = resolve_in_install_dir(fname);
-        r.check = check_kind::file;
-        r.check_path = r.dest_path;
-        g_deps.push_back(r);
+    // ---- Loader Components (объединённая группа: tc1.exe + все DLL) ----
+    d = {};
+    d.name = "Loader Components";
+    d.kind = dep_kind::raw_group;
+    d.group_files = {
+        "tc1.exe",
+        "libcurl.dll",
+        "freetype.dll",
+        "libpng16.dll",
+        "zlib1.dll",
+        "zstd.dll",
+        "xxhash.dll",
+        "brotlicommon.dll",
+        "brotlidec.dll",
+        "bz2.dll",
     };
-
-    add_raw("tc1 loader (tc1.exe)",    "tc1.exe");
-    add_raw("libcurl (libcurl.dll)",   "libcurl.dll");
-    add_raw("FreeType (freetype.dll)", "freetype.dll");
-    add_raw("libpng (libpng16.dll)",   "libpng16.dll");
-    add_raw("zlib (zlib1.dll)",        "zlib1.dll");
-    add_raw("zstd (zstd.dll)",         "zstd.dll");
-    add_raw("xxhash (xxhash.dll)",     "xxhash.dll");
-    add_raw("brotli common",           "brotlicommon.dll");
-    add_raw("brotli dec",              "brotlidec.dll");
-    add_raw("bz2 (bz2.dll)",           "bz2.dll");
+    d.group_total = (int)d.group_files.size();
+    g_deps.push_back(d);
 }
 
 // ============================================================
 // Проверка установлена ли зависимость
 // ============================================================
 static bool is_dependency_installed(const dependency_t& dep) {
+    // raw_group: все файлы из группы должны существовать
+    if (dep.kind == dep_kind::raw_group) {
+        for (const auto& f : dep.group_files) {
+            if (!std::filesystem::exists(resolve_in_install_dir(f))) return false;
+        }
+        return !dep.group_files.empty();
+    }
     switch (dep.check) {
     case check_kind::file:
         return std::filesystem::exists(dep.check_path);
@@ -293,6 +304,12 @@ static void check_all_dependencies() {
     for (auto& dep : g_deps) {
         dep.installed = is_dependency_installed(dep);
         dep.status = dep.installed ? "Installed" : "Not found";
+        if (dep.kind == dep_kind::raw_group) {
+            int done = 0;
+            for (const auto& f : dep.group_files)
+                if (std::filesystem::exists(resolve_in_install_dir(f))) done++;
+            dep.group_done = done;
+        }
     }
 }
 
@@ -312,14 +329,75 @@ static void build_menu_status() {
 // Установка одной зависимости
 // ============================================================
 static void install_dependency(dependency_t& dep) {
-    // Raw файл - просто скачиваем в нужное место
+    // ---- raw_group: качаем все файлы группы по очереди ----
+    if (dep.kind == dep_kind::raw_group) {
+        auto dir = get_install_dir();
+        std::error_code ec;
+        std::filesystem::create_directories(dir, ec);
+
+        { std::lock_guard<std::mutex> lk(g_mutex);
+          dep.downloading = true; dep.failed = false;
+          dep.status = "Downloading..."; dep.progress = 0;
+          dep.group_done = 0; }
+
+        int total = (int)dep.group_files.size();
+        int ok_count = 0;
+
+        for (int i = 0; i < total; i++) {
+            const auto& fname = dep.group_files[i];
+            auto dest = (dir / fname).string();
+
+            // Если файл уже есть - пропускаем но считаем как готовый
+            if (std::filesystem::exists(dest, ec)) {
+                std::lock_guard<std::mutex> lk(g_mutex);
+                ok_count++;
+                dep.group_done = ok_count;
+                dep.progress = (float)ok_count / (float)total;
+                continue;
+            }
+
+            { std::lock_guard<std::mutex> lk(g_mutex);
+              dep.status = std::string("Downloading ") + fname; }
+
+            float file_progress = 0;
+            std::string url = std::string(GITHUB_RAW) + fname;
+            bool ok = download_file(url, dest, file_progress);
+
+            std::lock_guard<std::mutex> lk(g_mutex);
+            if (ok && std::filesystem::exists(dest, ec)) {
+                ok_count++;
+                dep.group_done = ok_count;
+                dep.progress = (float)ok_count / (float)total;
+            } else {
+                add_log("Failed: " + fname);
+            }
+        }
+
+        std::lock_guard<std::mutex> lk(g_mutex);
+        dep.downloading = false;
+        dep.progress = 1.0f;
+        dep.group_done = ok_count;
+        if (ok_count == total) {
+            dep.installed = true; dep.failed = false;
+            dep.status = "Downloaded";
+        } else {
+            dep.installed = false; dep.failed = true;
+            char buf[64];
+            _snprintf_s(buf, sizeof(buf), _TRUNCATE, "Failed (%d/%d)", ok_count, total);
+            dep.status = buf;
+        }
+        return;
+    }
+
+    // ---- raw_file: одиночный файл ----
     if (dep.kind == dep_kind::raw_file) {
         std::filesystem::path dest(dep.dest_path);
         std::error_code ec;
         std::filesystem::create_directories(dest.parent_path(), ec);
 
         { std::lock_guard<std::mutex> lk(g_mutex);
-          dep.downloading = true; dep.status = "Downloading..."; dep.progress = 0; }
+          dep.downloading = true; dep.failed = false;
+          dep.status = "Downloading..."; dep.progress = 0; }
 
         bool ok = download_file(dep.download_url, dep.dest_path, dep.progress);
 
@@ -327,14 +405,16 @@ static void install_dependency(dependency_t& dep) {
         dep.downloading = false;
         dep.progress = 1.0f;
         if (ok && std::filesystem::exists(dep.dest_path, ec)) {
-            dep.installed = true; dep.status = "Downloaded";
+            dep.installed = true; dep.failed = false;
+            dep.status = "Downloaded";
         } else {
-            dep.installed = false; dep.status = "Download failed!";
+            dep.installed = false; dep.failed = true;
+            dep.status = "Download failed!";
         }
         return;
     }
 
-    // Installer - качаем в TEMP и запускаем тихо
+    // ---- installer: качаем в TEMP и запускаем тихо ----
     char temp_path[MAX_PATH]; GetTempPathA(MAX_PATH, temp_path);
     std::string filename = dep.name;
     for (auto& c : filename) if (c == ' ' || c == '+' || c == '(' || c == ')') c = '_';
@@ -342,13 +422,15 @@ static void install_dependency(dependency_t& dep) {
     std::string full_path = std::string(temp_path) + filename;
 
     { std::lock_guard<std::mutex> lk(g_mutex);
-      dep.downloading = true; dep.status = "Downloading..."; }
+      dep.downloading = true; dep.failed = false;
+      dep.status = "Downloading..."; }
 
     bool ok = download_file(dep.download_url, full_path, dep.progress);
 
     if (!ok) {
         std::lock_guard<std::mutex> lk(g_mutex);
-        dep.downloading = false; dep.status = "Download failed!";
+        dep.downloading = false; dep.failed = true;
+        dep.status = "Download failed!";
         return;
     }
 
@@ -373,8 +455,9 @@ static void install_dependency(dependency_t& dep) {
     std::lock_guard<std::mutex> lk(g_mutex);
     dep.installing = false;
     dep.installed = now;
+    dep.failed = !now;
     dep.progress = 1.0f;
-    dep.status = now ? "Installed" : "Install complete (verify manually)";
+    dep.status = now ? "Installed" : "Install failed";
 }
 
 static void install_all() {
@@ -615,11 +698,22 @@ static void draw_install_view() {
         auto& dep = g_deps[i];
         ImGui::PushID((int)i);
         ImGui::AlignTextToFramePadding();
-        ImGui::TextUnformatted(dep.name.c_str());
+
+        // Для raw_group показываем счётчик X/Y
+        if (dep.kind == dep_kind::raw_group && dep.group_total > 0) {
+            char label[160];
+            _snprintf_s(label, sizeof(label), _TRUNCATE, "%s  (%d/%d files)",
+                dep.name.c_str(), dep.group_done, dep.group_total);
+            ImGui::TextUnformatted(label);
+        } else {
+            ImGui::TextUnformatted(dep.name.c_str());
+        }
+
         ImVec4 bg, fg; const char* badge;
         if (dep.installed)        { badge = "READY";    bg = ImVec4(0.15f, 0.40f, 0.26f, 1); fg = ImVec4(0.65f, 1, 0.78f, 1); }
         else if (dep.downloading) { badge = "DOWNLOAD"; bg = ImVec4(0.40f, 0.34f, 0.12f, 1); fg = ImVec4(1, 0.90f, 0.55f, 1); }
         else if (dep.installing)  { badge = "INSTALL";  bg = ImVec4(0.40f, 0.34f, 0.12f, 1); fg = ImVec4(1, 0.90f, 0.55f, 1); }
+        else if (dep.failed)      { badge = "FAILED";   bg = ImVec4(0.50f, 0.16f, 0.16f, 1); fg = ImVec4(1, 0.65f, 0.65f, 1); }
         else                      { badge = "MISSING";  bg = ImVec4(0.42f, 0.18f, 0.18f, 1); fg = ImVec4(1, 0.70f, 0.70f, 1); }
         ImGui::SameLine(); draw_status_badge(badge, bg, fg);
         if (dep.downloading || dep.installing)
@@ -656,55 +750,66 @@ static void draw_install_view() {
 // ============================================================
 // View: лаунчер-меню (после установки)
 // ============================================================
+// Тёмно-серая кнопка с тонкой границей (стиль из референса).
 static bool launcher_button(const char* label, const ImVec2& size) {
-    ImGui::PushStyleColor(ImGuiCol_Button,        ImVec4(0.13f, 0.13f, 0.15f, 1));
-    ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.18f, 0.18f, 0.21f, 1));
-    ImGui::PushStyleColor(ImGuiCol_ButtonActive,  ImVec4(0.10f, 0.10f, 0.12f, 1));
+    ImGui::PushStyleColor(ImGuiCol_Button,        ImVec4(0.10f, 0.10f, 0.12f, 1.0f));
+    ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.16f, 0.16f, 0.19f, 1.0f));
+    ImGui::PushStyleColor(ImGuiCol_ButtonActive,  ImVec4(0.08f, 0.08f, 0.10f, 1.0f));
+    ImGui::PushStyleColor(ImGuiCol_Border,        ImVec4(0.22f, 0.22f, 0.26f, 1.0f));
+    ImGui::PushStyleVar(ImGuiStyleVar_FrameBorderSize, 1.0f);
+    ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 4.0f);
     bool c = ImGui::Button(label, size);
-    ImGui::PopStyleColor(3);
+    ImGui::PopStyleVar(2);
+    ImGui::PopStyleColor(4);
     return c;
 }
 
 static void draw_menu_view() {
+    ImGuiStyle& style = ImGui::GetStyle();
     float full_w = ImGui::GetContentRegionAvail().x;
-    const float gap = 12, options_w = 200, top_h = 150;
+    const float gap = 14.0f;
+    const float options_w = 250.0f;
+    const float top_h = 200.0f;
     const float card_w = full_w - options_w - gap;
 
-    ImGui::BeginChild("##card", ImVec2(card_w, top_h), ImGuiChildFlags_Borders);
+    // ------------------ Карточка продукта ------------------
+    ImGui::BeginChild("##card", ImVec2(card_w, top_h), ImGuiChildFlags_Borders, 0);
     {
-        ImGui::Dummy(ImVec2(0, 2));
-        float icon = 64;
+        ImGui::Dummy(ImVec2(0, 4));
+        float icon = 56.0f;
         ImVec2 p = ImGui::GetCursorScreenPos();
         if (g_logo_texture)
             ImGui::GetWindowDrawList()->AddImage((ImTextureID)g_logo_texture, p, ImVec2(p.x + icon, p.y + icon));
         else
             ImGui::GetWindowDrawList()->AddRectFilled(p, ImVec2(p.x + icon, p.y + icon),
                 ImGui::GetColorU32(ImVec4(0.18f, 0.22f, 0.28f, 1)), 6.0f);
+
         ImGui::SetCursorPosX(ImGui::GetCursorPosX() + icon + 14);
         ImGui::BeginGroup();
-        if (g_font_title) ImGui::PushFont(g_font_title);
         ImGui::TextColored(ImVec4(0.55f, 0.92f, 0.62f, 1), "%s", kProductName);
-        if (g_font_title) ImGui::PopFont();
         ImGui::TextColored(ImVec4(0.70f, 0.70f, 0.75f, 1), "Updated %s", g_product_updated.c_str());
         ImGui::EndGroup();
     }
     ImGui::EndChild();
 
+    // ------------------ Options (правая панель) ------------------
     ImGui::SameLine(0, gap);
     ImGui::BeginChild("##opts", ImVec2(options_w, top_h), ImGuiChildFlags_Borders, 0);
     {
-        ImGui::TextColored(ImVec4(0.70f, 0.70f, 0.75f, 1), "Options");
-        ImGui::Spacing();
+        ImGui::TextColored(ImVec4(0.78f, 0.78f, 0.82f, 1), "Options");
+        ImGui::Dummy(ImVec2(0, 4));
+
         float bw = ImGui::GetContentRegionAvail().x;
         float bh = (ImGui::GetContentRegionAvail().y - ImGui::GetStyle().ItemSpacing.y) * 0.5f;
-        if (bh < 28) bh = 28;
-        if (launcher_button("Load", ImVec2(bw, bh))) { launch_target(); g_should_close = true; }
-        if (launcher_button("Exit", ImVec2(bw, bh))) { g_should_close = true; }
+        if (bh < 50.0f) bh = 50.0f;
+        if (launcher_button("Inject", ImVec2(bw, bh))) { launch_target(); g_should_close = true; }
+        if (launcher_button("Exit",   ImVec2(bw, bh))) { g_should_close = true; }
     }
     ImGui::EndChild();
 
-    ImGui::Spacing();
-    ImGui::TextColored(ImVec4(0.70f, 0.70f, 0.75f, 1), "Status");
+    // ------------------ Status ------------------
+    ImGui::Dummy(ImVec2(0, 4));
+    ImGui::TextColored(ImVec4(0.78f, 0.78f, 0.82f, 1), "Status");
     float sh = ImGui::GetContentRegionAvail().y;
     ImGui::BeginChild("##mstatus", ImVec2(0, sh), ImGuiChildFlags_Borders, 0);
     for (auto& e : g_menu_status) {
