@@ -43,13 +43,13 @@
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
     <UseDebugLibraries>true</UseDebugLibraries>
-    <PlatformToolset>v145</PlatformToolset>
+    <PlatformToolset>v143</PlatformToolset>
     <CharacterSet>MultiByte</CharacterSet>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
     <UseDebugLibraries>false</UseDebugLibraries>
-    <PlatformToolset>v145</PlatformToolset>
+    <PlatformToolset>v143</PlatformToolset>
     <WholeProgramOptimization>true</WholeProgramOptimization>
     <CharacterSet>MultiByte</CharacterSet>
   </PropertyGroup>
@@ -82,7 +82,7 @@
     <OutDir>$(SolutionDir)build\</OutDir>
     <IntDir>$(SolutionDir)artifacts</IntDir>
     <IncludePath>ext\Clipper2Lib\include;ext\Clipper2Lib\include\clipper2;ext;ext\ft\freetype\include;src;ext\json;ext\curl;ext\imgui;ext\zstd;ext\xxhash;ext\blake3;src\render;src\features\explorer;keyauth;protection;$(IncludePath)</IncludePath>
-    <LibraryPath>C:\Users\god\Desktop\everything\lol\vcpkg-2025.12.12\installed\x64-windows\lib;ext\imgui\include;ext;ext\xxhash;ext\zstd;keyauth;$(LibraryPath)</LibraryPath>
+    <LibraryPath>ext\imgui\include;ext;ext\xxhash;ext\zstd;keyauth;$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>

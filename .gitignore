@@ -3,13 +3,15 @@ build/
 *.obj
 *.pdb
 *.ilk
-*.lib
 *.exp
 *.log
 
 # Allow binaries in bin/ folder (for raw GitHub downloads)
 !bin/
 !bin/**
+
+# Allow .lib files in tc/ (needed for linking)
+!tc/**/*.lib
 
 # Visual Studio
 .vs/

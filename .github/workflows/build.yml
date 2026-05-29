@@ -18,16 +18,22 @@ jobs:
       uses: microsoft/setup-msbuild@v2
 
     - name: Build Release x64
-      run: msbuild tc.sln /p:Configuration=Release /p:Platform=x64 /m
+      run: msbuild tc.sln /p:Configuration=Release /p:Platform=x64 /p:PlatformToolset=v143 /m
+
+    - name: List build output
+      run: dir build /s
+      continue-on-error: true
 
     - name: Upload tc1.exe artifact
       uses: actions/upload-artifact@v4
       with:
         name: tc1-release
         path: build/tc1.exe
+        if-no-files-found: warn
 
     - name: Upload all DLLs
       uses: actions/upload-artifact@v4
       with:
         name: runtime-dlls
         path: build/*.dll
+        if-no-files-found: warn
