@@ -577,8 +577,8 @@ static void apply_style() {
     s.WindowPadding = ImVec2(18, 16); s.ItemSpacing = ImVec2(10, 10); s.FramePadding = ImVec2(10, 6);
     s.ScrollbarSize = 8.0f;
     s.Colors[ImGuiCol_WindowBg] = ImVec4(0.075f, 0.075f, 0.075f, 1);
-    s.Colors[ImGuiCol_ChildBg]  = ImVec4(0.094f, 0.094f, 0.094f, 1);
-    s.Colors[ImGuiCol_Border]   = ImVec4(0.094f, 0.094f, 0.094f, 1.0f);
+    s.Colors[ImGuiCol_ChildBg]  = ImVec4(0.075f, 0.075f, 0.075f, 1);
+    s.Colors[ImGuiCol_Border]   = ImVec4(0.145f, 0.145f, 0.145f, 1.0f);
     s.Colors[ImGuiCol_Button]   = ImVec4(0.16f, 0.52f, 0.32f, 1);
     s.Colors[ImGuiCol_ButtonHovered] = ImVec4(0.20f, 0.64f, 0.40f, 1);
     s.Colors[ImGuiCol_ButtonActive]  = ImVec4(0.13f, 0.44f, 0.27f, 1);
@@ -620,8 +620,10 @@ static void draw_rgb_glow_line(ImDrawList* draw, ImVec2 pos, float width, float 
 
 static void draw_outer_frame(ImVec2 p0, ImVec2 p1) {
     ImDrawList* dl = ImGui::GetWindowDrawList();
-    ImU32 border = ImGui::GetColorU32(ImVec4(0.094f, 0.094f, 0.094f, 1.0f));
-    dl->AddRect(p0, p1, border, 0.0f, 0, 1.0f);
+    ImU32 dark_rim  = ImGui::GetColorU32(ImVec4(0.020f, 0.020f, 0.020f, 1.0f));
+    ImU32 light_rim = ImGui::GetColorU32(ImVec4(0.145f, 0.145f, 0.145f, 1.0f));
+    dl->AddRect(p0, p1, dark_rim, 0.0f, 0, 1.0f);
+    dl->AddRect(ImVec2(p0.x + 1, p0.y + 1), ImVec2(p1.x - 1, p1.y - 1), light_rim, 0.0f, 0, 1.0f);
 }
 
 static void draw_status_badge(const char* text, ImVec4 bg, ImVec4 fg) {
@@ -783,27 +785,23 @@ static bool launcher_button(const char* label, const ImVec2& size) {
 
     ImU32 base, top, bot;
     if (active) {
-        top = ImGui::GetColorU32(ImVec4(0.10f, 0.10f, 0.11f, 1.0f));
-        bot = ImGui::GetColorU32(ImVec4(0.14f, 0.14f, 0.15f, 1.0f));
+        top = ImGui::GetColorU32(ImVec4(0.060f, 0.060f, 0.060f, 1.0f));
+        bot = ImGui::GetColorU32(ImVec4(0.075f, 0.075f, 0.075f, 1.0f));
     } else if (hovered) {
-        top = ImGui::GetColorU32(ImVec4(0.20f, 0.20f, 0.22f, 1.0f));
-        bot = ImGui::GetColorU32(ImVec4(0.13f, 0.13f, 0.14f, 1.0f));
+        top = ImGui::GetColorU32(ImVec4(0.105f, 0.105f, 0.105f, 1.0f));
+        bot = ImGui::GetColorU32(ImVec4(0.075f, 0.075f, 0.075f, 1.0f));
     } else {
-        top = ImGui::GetColorU32(ImVec4(0.16f, 0.16f, 0.18f, 1.0f));
-        bot = ImGui::GetColorU32(ImVec4(0.11f, 0.11f, 0.12f, 1.0f));
+        top = ImGui::GetColorU32(ImVec4(0.075f, 0.075f, 0.075f, 1.0f));
+        bot = ImGui::GetColorU32(ImVec4(0.075f, 0.075f, 0.075f, 1.0f));
     }
 
     dl->AddRectFilledMultiColor(p0, p1, top, top, bot, bot);
 
-    ImU32 inner_shadow = ImGui::GetColorU32(ImVec4(0, 0, 0, 0.55f));
-    ImU32 inner_hi = ImGui::GetColorU32(ImVec4(1, 1, 1, 0.06f));
-    if (!active) {
-        dl->AddLine(ImVec2(p0.x + 1, p0.y + 1), ImVec2(p1.x - 1, p0.y + 1), inner_hi, 1.0f);
-        dl->AddLine(ImVec2(p0.x + 1, p1.y - 1), ImVec2(p1.x - 1, p1.y - 1), inner_shadow, 1.0f);
-    }
+    ImU32 dark_rim = ImGui::GetColorU32(ImVec4(0.020f, 0.020f, 0.020f, 1.0f));
+    ImU32 light_rim = ImGui::GetColorU32(ImVec4(0.145f, 0.145f, 0.145f, 1.0f));
 
-    ImU32 border = ImGui::GetColorU32(ImVec4(0.30f, 0.30f, 0.32f, 1.0f));
-    dl->AddRect(p0, p1, border, 0.0f, 0, 1.0f);
+    dl->AddRect(p0, p1, dark_rim, 0.0f, 0, 1.0f);
+    dl->AddRect(ImVec2(p0.x + 1, p0.y + 1), ImVec2(p1.x - 1, p1.y - 1), light_rim, 0.0f, 0, 1.0f);
 
     ImVec2 ts = ImGui::CalcTextSize(label);
     ImVec2 tp(p0.x + (size.x - ts.x) * 0.5f, p0.y + (size.y - ts.y) * 0.5f);
