@@ -36,8 +36,8 @@ static const char* kProductName = "Turtle.Club Loader";
 
 static constexpr int kInstallW = 520;
 static constexpr int kInstallH = 540;
-static constexpr int kMenuW   = 820;
-static constexpr int kMenuH   = 560;
+static constexpr int kMenuW   = 880;
+static constexpr int kMenuH   = 600;
 static constexpr float kTitleBarH = 32.0f;
 
 enum class dep_kind {
@@ -572,7 +572,7 @@ static void resize_window_for_view(app_view v) {
 static void apply_style() {
     ImGui::StyleColorsDark();
     ImGuiStyle& s = ImGui::GetStyle();
-    s.WindowRounding = 0; s.FrameRounding = 2; s.GrabRounding = 2; s.ChildRounding = 2;
+    s.WindowRounding = 0; s.FrameRounding = 4; s.GrabRounding = 4; s.ChildRounding = 4;
     s.WindowBorderSize = 0; s.FrameBorderSize = 0; s.ChildBorderSize = 1;
     s.WindowPadding = ImVec2(18, 16); s.ItemSpacing = ImVec2(10, 10); s.FramePadding = ImVec2(10, 6);
     s.ScrollbarSize = 8.0f;
@@ -622,8 +622,8 @@ static void draw_outer_frame(ImVec2 p0, ImVec2 p1) {
     ImDrawList* dl = ImGui::GetWindowDrawList();
     ImU32 outer  = ImGui::GetColorU32(ImVec4(0.02f, 0.02f, 0.03f, 1.0f));
     ImU32 inner  = ImGui::GetColorU32(ImVec4(0.30f, 0.30f, 0.34f, 1.0f));
-    dl->AddRect(p0, p1, outer, 0.0f, 0, 1.0f);
-    dl->AddRect(ImVec2(p0.x + 1, p0.y + 1), ImVec2(p1.x - 1, p1.y - 1), inner, 0.0f, 0, 1.0f);
+    dl->AddRect(p0, p1, outer, 4.0f, 0, 1.0f);
+    dl->AddRect(ImVec2(p0.x + 1, p0.y + 1), ImVec2(p1.x - 1, p1.y - 1), inner, 4.0f, 0, 1.0f);
 }
 
 static void draw_status_badge(const char* text, ImVec4 bg, ImVec4 fg) {
@@ -783,36 +783,44 @@ static bool launcher_button(const char* label, const ImVec2& size) {
     ImDrawList* dl = ImGui::GetWindowDrawList();
     ImVec2 p0 = cursor;
     ImVec2 p1 = ImVec2(cursor.x + size.x, cursor.y + size.y);
+    const float rounding = 3.0f;
 
     ImVec4 top, bot;
     if (active) {
-        top = ImVec4(0.07f, 0.07f, 0.09f, 1.0f);
-        bot = ImVec4(0.10f, 0.10f, 0.12f, 1.0f);
+        top = ImVec4(0.10f, 0.10f, 0.12f, 1.0f);
+        bot = ImVec4(0.18f, 0.18f, 0.21f, 1.0f);
     } else if (hovered) {
-        top = ImVec4(0.20f, 0.20f, 0.23f, 1.0f);
+        top = ImVec4(0.30f, 0.30f, 0.34f, 1.0f);
         bot = ImVec4(0.10f, 0.10f, 0.12f, 1.0f);
     } else {
-        top = ImVec4(0.16f, 0.16f, 0.19f, 1.0f);
+        top = ImVec4(0.24f, 0.24f, 0.27f, 1.0f);
         bot = ImVec4(0.08f, 0.08f, 0.10f, 1.0f);
     }
 
+    int vtx_start = dl->VtxBuffer.Size;
+    dl->AddRectFilled(p0, p1, ImGui::GetColorU32(ImVec4(1, 1, 1, 1)), rounding);
+    int vtx_end = dl->VtxBuffer.Size;
     ImU32 ctop = ImGui::GetColorU32(top);
     ImU32 cbot = ImGui::GetColorU32(bot);
-    dl->AddRectFilledMultiColor(p0, p1, ctop, ctop, cbot, cbot);
+    for (int i = vtx_start; i < vtx_end; i++) {
+        ImDrawVert& v = dl->VtxBuffer[i];
+        float t = (v.pos.y - p0.y) / size.y;
+        ImVec4 c;
+        c.x = top.x + (bot.x - top.x) * t;
+        c.y = top.y + (bot.y - top.y) * t;
+        c.z = top.z + (bot.z - top.z) * t;
+        c.w = 1.0f;
+        v.col = ImGui::GetColorU32(c);
+    }
 
     ImU32 outer  = ImGui::GetColorU32(ImVec4(0.02f, 0.02f, 0.03f, 1.0f));
-    ImU32 inner  = ImGui::GetColorU32(ImVec4(0.32f, 0.32f, 0.36f, 1.0f));
-    ImU32 bottom = ImGui::GetColorU32(ImVec4(0.04f, 0.04f, 0.05f, 1.0f));
-
-    dl->AddRect(p0, p1, outer, 0.0f, 0, 1.0f);
-    dl->AddLine(ImVec2(p0.x + 1, p0.y + 1), ImVec2(p1.x - 1, p0.y + 1), inner, 1.0f);
-    dl->AddLine(ImVec2(p0.x + 1, p0.y + 1), ImVec2(p0.x + 1, p1.y - 1), inner, 1.0f);
-    dl->AddLine(ImVec2(p0.x + 1, p1.y - 1), ImVec2(p1.x - 1, p1.y - 1), bottom, 1.0f);
-    dl->AddLine(ImVec2(p1.x - 1, p0.y + 1), ImVec2(p1.x - 1, p1.y - 1), bottom, 1.0f);
+    ImU32 inner  = ImGui::GetColorU32(ImVec4(0.42f, 0.42f, 0.46f, 1.0f));
+    dl->AddRect(p0, p1, outer, rounding, 0, 1.0f);
+    dl->AddRect(ImVec2(p0.x + 1, p0.y + 1), ImVec2(p1.x - 1, p1.y - 1), inner, rounding, 0, 1.0f);
 
     ImVec2 ts = ImGui::CalcTextSize(label);
     ImVec2 tp(p0.x + (size.x - ts.x) * 0.5f, p0.y + (size.y - ts.y) * 0.5f);
-    dl->AddText(tp, ImGui::GetColorU32(ImVec4(0.92f, 0.92f, 0.94f, 1.0f)), label);
+    dl->AddText(tp, ImGui::GetColorU32(ImVec4(0.95f, 0.95f, 0.97f, 1.0f)), label);
 
     return clicked;
 }
@@ -827,10 +835,10 @@ static void draw_menu_view() {
     draw_outer_frame(outer_p0, outer_p1);
 
     const float pad = 14.0f;
-    const float gap = 12.0f;
-    const float options_w = 230.0f;
-    const float top_h = 165.0f;
-    const float lbl_h = ImGui::GetTextLineHeight() + 4.0f;
+    const float gap = 10.0f;
+    const float options_w = 220.0f;
+    const float top_h = 175.0f;
+    const float lbl_h = ImGui::GetTextLineHeight() + 6.0f;
 
     ImGui::SetCursorScreenPos(ImVec2(outer_p0.x + pad, outer_p0.y + pad));
 
