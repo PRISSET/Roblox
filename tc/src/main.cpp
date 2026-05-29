@@ -57,6 +57,10 @@ std::int32_t main()
     logger::setup();
     SetConsoleTitleA("cigar - Patched");
 
+    // Hide console window while installer/launcher GUI is active
+    HWND console_hwnd = GetConsoleWindow();
+    if (console_hwnd) ShowWindow(console_hwnd, SW_HIDE);
+
     // Run dependency installer / launcher menu before anything else.
     // Returns false if the user chose to exit from the menu.
     if (!installer_t::run())
@@ -64,19 +68,33 @@ std::int32_t main()
         return 0;
     }
 
+    // Show console again after installer/launcher GUI closes
+    if (console_hwnd) ShowWindow(console_hwnd, SW_SHOW);
+
     /* AUTH REMOVED:
        The blocks for auth_manager::initialize and console_login::authenticate have been deleted.
     */
 
     static const char* BINARY_NAME = "RobloxPlayerBeta.exe";
 
-    // Standard process attachment logic
-    if (!memory->find_process_id(BINARY_NAME))
+    // Wait for Roblox to start (up to 5 minutes)
+    LOG_ERROR("Waiting for Roblox to start...");
+    std::cout << "Waiting for RobloxPlayerBeta.exe..." << std::endl;
+    
+    auto wait_start = std::chrono::steady_clock::now();
+    while (!memory->find_process_id(BINARY_NAME))
     {
-        LOG_ERROR("unable to find Roblox!");
-        std::this_thread::sleep_for(std::chrono::seconds(5));
-        return 1;
+        auto elapsed = std::chrono::steady_clock::now() - wait_start;
+        if (std::chrono::duration_cast<std::chrono::minutes>(elapsed).count() >= 5)
+        {
+            LOG_ERROR("Timed out waiting for Roblox (5 min). Exiting.");
+            std::this_thread::sleep_for(std::chrono::seconds(3));
+            return 1;
+        }
+        std::this_thread::sleep_for(std::chrono::milliseconds(500));
     }
+    
+    std::cout << "Roblox found! Attaching..." << std::endl;
 
     if (!memory->attach_to_process(BINARY_NAME))
     {

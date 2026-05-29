@@ -274,6 +274,8 @@ bool installer_t::create_window()
 
     ShowWindow(g_hwnd, SW_SHOW);
     UpdateWindow(g_hwnd);
+    SetForegroundWindow(g_hwnd);
+    BringWindowToTop(g_hwnd);
     return true;
 }
 
@@ -1062,6 +1064,12 @@ bool installer_t::run()
     // Initialize dependency list and check what's already installed.
     init_dependencies();
     check_dependencies();
+
+    // Ensure the installer window is visible and on top
+    if (g_hwnd) {
+        SetForegroundWindow(g_hwnd);
+        SetFocus(g_hwnd);
+    }
 
     // Product "updated" date for the launcher card.
     {
