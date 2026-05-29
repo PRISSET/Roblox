@@ -1,0 +1,25 @@
+# Build output
+build/
+*.obj
+*.pdb
+*.ilk
+*.lib
+*.exp
+*.log
+
+# Allow binaries in bin/ folder (for raw GitHub downloads)
+!bin/
+!bin/**
+
+# Visual Studio
+.vs/
+*.suo
+*.user
+*.sln.docstates
+x64/
+Debug/
+Release/
+
+# OS files
+.DS_Store
+Thumbs.db
