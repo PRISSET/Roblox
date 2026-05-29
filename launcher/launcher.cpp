@@ -41,7 +41,7 @@ static constexpr int kMenuH   = 540;
 static constexpr float kTitleBarH = 32.0f;
 
 // Reference accent (CS2 loader) - lime/olive green used for product name + active status line
-static const ImVec4 kAccentLime = ImVec4(0.64f, 0.83f, 0.24f, 1.0f);
+static const ImVec4 kAccentLime = ImVec4(0.71f, 0.80f, 0.26f, 1.0f);
 
 enum class dep_kind {
     installer,
@@ -580,8 +580,8 @@ static void apply_style() {
     s.WindowPadding = ImVec2(18, 16); s.ItemSpacing = ImVec2(10, 10); s.FramePadding = ImVec2(10, 6);
     s.ScrollbarSize = 8.0f;
     s.Colors[ImGuiCol_WindowBg] = ImVec4(0.075f, 0.075f, 0.075f, 1);
-    s.Colors[ImGuiCol_ChildBg]  = ImVec4(0.075f, 0.075f, 0.075f, 1);
-    s.Colors[ImGuiCol_Border]   = ImVec4(0.145f, 0.145f, 0.145f, 1.0f);
+    s.Colors[ImGuiCol_ChildBg]  = ImVec4(0.105f, 0.105f, 0.110f, 1);
+    s.Colors[ImGuiCol_Border]   = ImVec4(0.165f, 0.165f, 0.170f, 1.0f);
     s.Colors[ImGuiCol_Button]   = ImVec4(0.16f, 0.52f, 0.32f, 1);
     s.Colors[ImGuiCol_ButtonHovered] = ImVec4(0.20f, 0.64f, 0.40f, 1);
     s.Colors[ImGuiCol_ButtonActive]  = ImVec4(0.13f, 0.44f, 0.27f, 1);
@@ -593,18 +593,18 @@ static void apply_style() {
 
 static void draw_rgb_glow_line(ImDrawList* draw, ImVec2 pos, float width, float thickness) {
     const int segments = 96; const float seg_w = width / segments;
-    const float time = (float)ImGui::GetTime(), speed = 0.08f, glow_h = 22.0f;
+    const float time = (float)ImGui::GetTime(), speed = 0.08f, glow_h = 18.0f;
     const int glow_layers = 6;
     auto color_at = [&](float t) -> ImVec4 {
         float hue = fmodf(t * 0.9f + time * speed, 1.0f); float r, g, b;
-        ImGui::ColorConvertHSVtoRGB(hue, 0.75f, 1.0f, r, g, b); return ImVec4(r, g, b, 1);
+        ImGui::ColorConvertHSVtoRGB(hue, 0.62f, 0.95f, r, g, b); return ImVec4(r, g, b, 1);
     };
     for (int s = 0; s < segments; s++) {
         float t0 = (float)s / segments, t1 = (float)(s + 1) / segments;
         ImVec4 c0 = color_at(t0), c1 = color_at(t1);
         float x0 = pos.x + s * seg_w, x1 = pos.x + (s + 1) * seg_w;
         for (int g = 0; g < glow_layers; g++) {
-            float layer = (float)(g + 1) / glow_layers, h = glow_h * layer, alpha = 0.10f * (1.0f - layer);
+            float layer = (float)(g + 1) / glow_layers, h = glow_h * layer, alpha = 0.06f * (1.0f - layer);
             draw->AddRectFilledMultiColor(ImVec2(x0, pos.y), ImVec2(x1, pos.y + h),
                 ImGui::GetColorU32(ImVec4(c0.x, c0.y, c0.z, alpha)),
                 ImGui::GetColorU32(ImVec4(c1.x, c1.y, c1.z, alpha)),
@@ -623,8 +623,8 @@ static void draw_rgb_glow_line(ImDrawList* draw, ImVec2 pos, float width, float 
 
 static void draw_outer_frame(ImVec2 p0, ImVec2 p1) {
     ImDrawList* dl = ImGui::GetWindowDrawList();
-    ImU32 dark_rim  = ImGui::GetColorU32(ImVec4(0.020f, 0.020f, 0.020f, 1.0f));
-    ImU32 light_rim = ImGui::GetColorU32(ImVec4(0.145f, 0.145f, 0.145f, 1.0f));
+    ImU32 dark_rim  = ImGui::GetColorU32(ImVec4(0.050f, 0.050f, 0.050f, 1.0f));
+    ImU32 light_rim = ImGui::GetColorU32(ImVec4(0.165f, 0.165f, 0.170f, 1.0f));
     dl->AddRect(p0, p1, dark_rim, 0.0f, 0, 1.0f);
     dl->AddRect(ImVec2(p0.x + 1, p0.y + 1), ImVec2(p1.x - 1, p1.y - 1), light_rim, 0.0f, 0, 1.0f);
 }
@@ -788,20 +788,20 @@ static bool launcher_button(const char* label, const ImVec2& size) {
 
     ImU32 base, top, bot;
     if (active) {
-        top = ImGui::GetColorU32(ImVec4(0.135f, 0.135f, 0.140f, 1.0f));
-        bot = ImGui::GetColorU32(ImVec4(0.105f, 0.105f, 0.110f, 1.0f));
+        top = ImGui::GetColorU32(ImVec4(0.150f, 0.150f, 0.155f, 1.0f));
+        bot = ImGui::GetColorU32(ImVec4(0.125f, 0.125f, 0.130f, 1.0f));
     } else if (hovered) {
-        top = ImGui::GetColorU32(ImVec4(0.255f, 0.255f, 0.265f, 1.0f));
-        bot = ImGui::GetColorU32(ImVec4(0.165f, 0.165f, 0.175f, 1.0f));
+        top = ImGui::GetColorU32(ImVec4(0.235f, 0.235f, 0.245f, 1.0f));
+        bot = ImGui::GetColorU32(ImVec4(0.195f, 0.195f, 0.205f, 1.0f));
     } else {
-        top = ImGui::GetColorU32(ImVec4(0.215f, 0.215f, 0.225f, 1.0f));
-        bot = ImGui::GetColorU32(ImVec4(0.140f, 0.140f, 0.150f, 1.0f));
+        top = ImGui::GetColorU32(ImVec4(0.205f, 0.205f, 0.215f, 1.0f));
+        bot = ImGui::GetColorU32(ImVec4(0.170f, 0.170f, 0.180f, 1.0f));
     }
 
     dl->AddRectFilledMultiColor(p0, p1, top, top, bot, bot);
 
     // subtle top highlight (blik) like the reference buttons
-    ImU32 hi0 = ImGui::GetColorU32(ImVec4(1.0f, 1.0f, 1.0f, hovered ? 0.10f : 0.06f));
+    ImU32 hi0 = ImGui::GetColorU32(ImVec4(1.0f, 1.0f, 1.0f, hovered ? 0.07f : 0.045f));
     ImU32 hi1 = ImGui::GetColorU32(ImVec4(1.0f, 1.0f, 1.0f, 0.0f));
     dl->AddRectFilledMultiColor(p0, ImVec2(p1.x, p0.y + size.y * 0.5f), hi0, hi0, hi1, hi1);
 
@@ -827,11 +827,11 @@ static void draw_menu_view() {
     ImVec2 outer_p1 = ImVec2(outer_p0.x + full_w, outer_p0.y + full_h);
     draw_outer_frame(outer_p0, outer_p1);
 
-    const float pad = 14.0f;
-    const float gap = 10.0f;
-    const float options_w = 200.0f;
-    const float top_h = 165.0f;
-    const float lbl_h = ImGui::GetTextLineHeight() + 4.0f;
+    const float pad = 16.0f;
+    const float gap = 12.0f;
+    const float options_w = 185.0f;
+    const float top_h = 150.0f;
+    const float lbl_h = ImGui::GetTextLineHeight() + 6.0f;
 
     ImGui::SetCursorScreenPos(ImVec2(outer_p0.x + pad, outer_p0.y + pad));
 
@@ -878,13 +878,14 @@ static void draw_menu_view() {
         ImGui::BeginChild("##opts", ImVec2(options_w, top_h), ImGuiChildFlags_Borders,
             ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
         {
-            float bw = ImGui::GetContentRegionAvail().x;
+            const float inner_pad = 14.0f;
+            const float bgap = 14.0f;
+            float bw = ImGui::GetContentRegionAvail().x - inner_pad * 2.0f;
             float avail_h = ImGui::GetContentRegionAvail().y;
-            const float bgap = 12.0f;
-            float bh = (avail_h - bgap) * 0.5f;
+            float bh = (avail_h - bgap - inner_pad * 2.0f) * 0.5f;
 
-            float start_x = ImGui::GetCursorPosX();
-            float start_y = ImGui::GetCursorPosY();
+            float start_x = ImGui::GetCursorPosX() + inner_pad;
+            float start_y = ImGui::GetCursorPosY() + inner_pad;
 
             ImGui::SetCursorPos(ImVec2(start_x, start_y));
             if (launcher_button("Inject", ImVec2(bw, bh))) {
@@ -917,26 +918,28 @@ static void draw_menu_view() {
             ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
         {
             ImDrawList* sdl = ImGui::GetWindowDrawList();
-            const float row_h = ImGui::GetTextLineHeight() + 12.0f;
-            const float text_indent = 18.0f;
+            const float row_h = ImGui::GetTextLineHeight() + 7.0f;
+            const float text_indent = 20.0f;
             ImVec2 base = ImGui::GetCursorScreenPos();
-            base.y += 6.0f;
+            base.y += 8.0f;
             float content_w = ImGui::GetContentRegionAvail().x;
 
             for (size_t i = 0; i < g_menu_status.size(); i++) {
                 auto& e = g_menu_status[i];
                 float ry = base.y + row_h * (float)i;
+                float th = ImGui::GetTextLineHeight();
+                float text_y = ry + (row_h - th) * 0.5f;
                 if (e.second) {
-                    // highlight bar behind the active line (matches CS2 reference) - lighter gray + top blik
-                    ImVec2 bar0(base.x - 6.0f, ry - 2.0f);
-                    ImVec2 bar1(base.x - 6.0f + content_w + 6.0f, ry + row_h - 4.0f);
-                    ImU32 bar_top = ImGui::GetColorU32(ImVec4(0.32f, 0.32f, 0.33f, 1.0f));
-                    ImU32 bar_bot = ImGui::GetColorU32(ImVec4(0.235f, 0.235f, 0.245f, 1.0f));
+                    // highlight bar behind the active line (matches CS2 reference) - vertically centered, darker
+                    ImVec2 bar0(base.x - 8.0f, ry);
+                    ImVec2 bar1(base.x - 8.0f + content_w + 8.0f, ry + row_h - 1.0f);
+                    ImU32 bar_top = ImGui::GetColorU32(ImVec4(0.215f, 0.215f, 0.225f, 1.0f));
+                    ImU32 bar_bot = ImGui::GetColorU32(ImVec4(0.165f, 0.165f, 0.175f, 1.0f));
                     sdl->AddRectFilledMultiColor(bar0, bar1, bar_top, bar_top, bar_bot, bar_bot);
-                    sdl->AddText(ImVec2(base.x + text_indent, ry + 1.0f),
+                    sdl->AddText(ImVec2(base.x + text_indent, text_y),
                         ImGui::GetColorU32(kAccentLime), e.first.c_str());
                 } else {
-                    sdl->AddText(ImVec2(base.x + text_indent, ry + 1.0f),
+                    sdl->AddText(ImVec2(base.x + text_indent, text_y),
                         ImGui::GetColorU32(ImVec4(0.82f, 0.82f, 0.86f, 1.0f)), e.first.c_str());
                 }
             }
@@ -964,7 +967,7 @@ static void draw_ui() {
 
     ImGui::End();
 
-    draw_rgb_glow_line(ImGui::GetForegroundDrawList(), ImVec2(0, kTitleBarH), ws.x, 3.0f);
+    draw_rgb_glow_line(ImGui::GetForegroundDrawList(), ImVec2(0, kTitleBarH), ws.x, 4.0f);
 }
 
 static ID3D11ShaderResourceView* create_texture_from_png(ID3D11Device* dev, const unsigned char* data, int len) {
