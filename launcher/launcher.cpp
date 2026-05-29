@@ -618,12 +618,28 @@ static void draw_rgb_glow_line(ImDrawList* draw, ImVec2 pos, float width, float 
     }
 }
 
+static void draw_drop_shadow(ImVec2 p0, ImVec2 p1) {
+    ImDrawList* dl = ImGui::GetWindowDrawList();
+    const int layers = 8;
+    for (int i = 1; i <= layers; i++) {
+        float a = 0.06f * (1.0f - (float)i / layers);
+        ImU32 col = ImGui::GetColorU32(ImVec4(0, 0, 0, a));
+        dl->AddRect(ImVec2(p0.x - i, p0.y - i), ImVec2(p1.x + i, p1.y + i), col, 0.0f, 0, 1.0f);
+    }
+}
+
 static void draw_outer_frame(ImVec2 p0, ImVec2 p1) {
     ImDrawList* dl = ImGui::GetWindowDrawList();
+    draw_drop_shadow(p0, p1);
+
     ImU32 outer  = ImGui::GetColorU32(ImVec4(0.02f, 0.02f, 0.03f, 1.0f));
-    ImU32 inner  = ImGui::GetColorU32(ImVec4(0.30f, 0.30f, 0.34f, 1.0f));
+    ImU32 inner  = ImGui::GetColorU32(ImVec4(0.32f, 0.32f, 0.36f, 1.0f));
+    ImU32 highlight = ImGui::GetColorU32(ImVec4(0.22f, 0.22f, 0.25f, 0.6f));
+
     dl->AddRect(p0, p1, outer, 0.0f, 0, 1.0f);
     dl->AddRect(ImVec2(p0.x + 1, p0.y + 1), ImVec2(p1.x - 1, p1.y - 1), inner, 0.0f, 0, 1.0f);
+
+    dl->AddLine(ImVec2(p0.x + 2, p0.y + 2), ImVec2(p1.x - 2, p0.y + 2), highlight, 1.0f);
 }
 
 static void draw_status_badge(const char* text, ImVec4 bg, ImVec4 fg) {
@@ -811,13 +827,28 @@ static bool launcher_button(const char* label, const ImVec2& size) {
     }
 
     ImU32 outer = ImGui::GetColorU32(ImVec4(0.02f, 0.02f, 0.03f, 1.0f));
-    ImU32 inner = ImGui::GetColorU32(ImVec4(0.30f, 0.30f, 0.34f, 1.0f));
+    ImU32 inner = ImGui::GetColorU32(ImVec4(0.32f, 0.32f, 0.36f, 1.0f));
+    ImU32 highlight = ImGui::GetColorU32(ImVec4(0.40f, 0.40f, 0.44f, 0.7f));
+    ImU32 bottom_shadow = ImGui::GetColorU32(ImVec4(0.0f, 0.0f, 0.0f, 0.6f));
+
+    for (int i = 1; i <= 4; i++) {
+        float a = 0.05f * (1.0f - (float)i / 4);
+        ImU32 col = ImGui::GetColorU32(ImVec4(0, 0, 0, a));
+        dl->AddRect(ImVec2(p0.x - i, p0.y - i + 1), ImVec2(p1.x + i, p1.y + i + 1), col, 0.0f, 0, 1.0f);
+    }
+
     dl->AddRect(p0, p1, outer, 0.0f, 0, 1.0f);
     dl->AddRect(ImVec2(p0.x + 1, p0.y + 1), ImVec2(p1.x - 1, p1.y - 1), inner, 0.0f, 0, 1.0f);
 
+    if (!active) {
+        dl->AddLine(ImVec2(p0.x + 2, p0.y + 2), ImVec2(p1.x - 2, p0.y + 2), highlight, 1.0f);
+        dl->AddLine(ImVec2(p0.x + 2, p1.y - 2), ImVec2(p1.x - 2, p1.y - 2), bottom_shadow, 1.0f);
+    }
+
     ImVec2 ts = ImGui::CalcTextSize(label);
     ImVec2 tp(p0.x + (size.x - ts.x) * 0.5f, p0.y + (size.y - ts.y) * 0.5f);
-    dl->AddText(tp, ImGui::GetColorU32(ImVec4(0.92f, 0.92f, 0.94f, 1.0f)), label);
+    dl->AddText(ImVec2(tp.x + 1, tp.y + 1), ImGui::GetColorU32(ImVec4(0, 0, 0, 0.6f)), label);
+    dl->AddText(tp, ImGui::GetColorU32(ImVec4(0.95f, 0.95f, 0.97f, 1.0f)), label);
 
     return clicked;
 }
