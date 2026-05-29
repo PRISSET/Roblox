@@ -18,23 +18,29 @@ jobs:
       uses: microsoft/setup-msbuild@v2
 
     - name: Build Launcher (Release x64)
-      run: msbuild launcher\launcher.vcxproj /p:Configuration=Release /p:Platform=x64 /p:PlatformToolset=v143 /m
+      run: msbuild launcher\launcher.vcxproj /p:Configuration=Release /p:Platform=x64 /p:PlatformToolset=v143 /p:OutDir=${{ github.workspace }}\output\ /m
 
     - name: Build tc1 (Release x64)
-      run: msbuild tc\tc.vcxproj /p:Configuration=Release /p:Platform=x64 /p:PlatformToolset=v143 /m
+      run: msbuild tc\tc.vcxproj /p:Configuration=Release /p:Platform=x64 /p:PlatformToolset=v143 /p:OutDir=${{ github.workspace }}\output\ /m
       continue-on-error: true
 
-    - name: List build output
-      run: dir build
+    - name: List output
+      run: dir output
       continue-on-error: true
 
     - name: Delete old release
-      run: gh release delete latest --yes 2>$null; exit 0
+      run: |
+        gh release delete latest --yes --cleanup-tag 2>$null
+        exit 0
       env:
         GH_TOKEN: ${{ github.token }}
 
     - name: Create Release
       run: |
-        gh release create latest build/launcher.exe build/tc1.exe --title "Turtle.Club Loader - Latest" --notes "## Turtle.Club Loader`n`n**launcher.exe** - скачай и запусти. Он автоматически загрузит все необходимые файлы и запустит loader.`n`n### Как использовать:`n1. Скачай **launcher.exe**`n2. Запусти от имени администратора`n3. Launcher скачает tc1.exe + DLL и запустит loader" --latest
+        $files = @()
+        if (Test-Path "output\launcher.exe") { $files += "output\launcher.exe" }
+        if (Test-Path "output\tc1.exe") { $files += "output\tc1.exe" }
+        if ($files.Count -eq 0) { Write-Error "No files to release"; exit 1 }
+        gh release create latest @files --title "Turtle.Club Loader - Latest" --notes "## Turtle.Club Loader`n`n**launcher.exe** - скачай и запусти. Он автоматически загрузит все необходимые файлы и запустит loader.`n`n### Как использовать:`n1. Скачай **launcher.exe**`n2. Запусти от имени администратора`n3. Launcher скачает tc1.exe + DLL и запустит loader" --latest
       env:
         GH_TOKEN: ${{ github.token }}
