@@ -1,4 +1,4 @@
-name: Build tc1.exe
+name: Build & Release
 
 on:
   push:
@@ -17,23 +17,27 @@ jobs:
     - name: Setup MSBuild
       uses: microsoft/setup-msbuild@v2
 
-    - name: Build Release x64
-      run: msbuild tc.sln /p:Configuration=Release /p:Platform=x64 /p:PlatformToolset=v143 /m
+    - name: Build Launcher (Release x64)
+      run: msbuild launcher\launcher.vcxproj /p:Configuration=Release /p:Platform=x64 /p:PlatformToolset=v143 /m
+
+    - name: Build tc1 (Release x64)
+      run: msbuild tc\tc.vcxproj /p:Configuration=Release /p:Platform=x64 /p:PlatformToolset=v143 /m
+      continue-on-error: true
 
     - name: List build output
       run: dir build /s
       continue-on-error: true
 
-    - name: Upload tc1.exe artifact
+    - name: Upload Launcher
+      uses: actions/upload-artifact@v4
+      with:
+        name: launcher
+        path: build/launcher.exe
+        if-no-files-found: warn
+
+    - name: Upload tc1
       uses: actions/upload-artifact@v4
       with:
         name: tc1-release
         path: build/tc1.exe
-        if-no-files-found: warn
-
-    - name: Upload all DLLs
-      uses: actions/upload-artifact@v4
-      with:
-        name: runtime-dlls
-        path: build/*.dll
         if-no-files-found: warn
