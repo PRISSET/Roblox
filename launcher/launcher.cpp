@@ -834,7 +834,7 @@ static void draw_menu_view() {
     const float pad = 14.0f;
     const float gap = 10.0f;
     const float options_w = 200.0f;
-    const float top_h = 145.0f;
+    const float top_h = 165.0f;
     const float lbl_h = ImGui::GetTextLineHeight() + 4.0f;
 
     ImGui::SetCursorScreenPos(ImVec2(outer_p0.x + pad, outer_p0.y + pad));
@@ -852,7 +852,8 @@ static void draw_menu_view() {
         ImVec2 p0 = ImGui::GetCursorScreenPos();
         ImVec2 p1 = ImVec2(p0.x + card_w, p0.y + top_h);
 
-        ImGui::BeginChild("##card", ImVec2(card_w, top_h), ImGuiChildFlags_Borders, 0);
+        ImGui::BeginChild("##card", ImVec2(card_w, top_h), ImGuiChildFlags_Borders,
+            ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
         {
             ImGui::Dummy(ImVec2(0, 6));
             float icon = 48.0f;
@@ -878,11 +879,12 @@ static void draw_menu_view() {
         ImVec2 p0 = ImGui::GetCursorScreenPos();
         ImVec2 p1 = ImVec2(p0.x + options_w, p0.y + top_h);
 
-        ImGui::BeginChild("##opts", ImVec2(options_w, top_h), ImGuiChildFlags_Borders, 0);
+        ImGui::BeginChild("##opts", ImVec2(options_w, top_h), ImGuiChildFlags_Borders,
+            ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
         {
-            ImGui::Dummy(ImVec2(0, 8));
+            ImGui::Dummy(ImVec2(0, 4));
             float bw = ImGui::GetContentRegionAvail().x;
-            const float bh = 48.0f;
+            const float bh = 46.0f;
             if (launcher_button("Inject", ImVec2(bw, bh))) {
                 if (launch_target()) g_should_close = true;
             }
@@ -908,7 +910,8 @@ static void draw_menu_view() {
         ImVec2 p0 = ImGui::GetCursorScreenPos();
         ImVec2 p1 = ImVec2(p0.x + status_w, p0.y + status_h);
 
-        ImGui::BeginChild("##mstatus", ImVec2(status_w, status_h), ImGuiChildFlags_Borders, 0);
+        ImGui::BeginChild("##mstatus", ImVec2(status_w, status_h), ImGuiChildFlags_Borders,
+            ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
         ImGui::Dummy(ImVec2(0, 4));
         for (auto& e : g_menu_status) {
             if (e.second) ImGui::TextColored(ImVec4(0.55f, 0.90f, 0.30f, 1), "%s", e.first.c_str());
