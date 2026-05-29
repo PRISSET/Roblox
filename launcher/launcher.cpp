@@ -576,8 +576,8 @@ static void apply_style() {
     s.WindowBorderSize = 0; s.FrameBorderSize = 0; s.ChildBorderSize = 1;
     s.WindowPadding = ImVec2(18, 16); s.ItemSpacing = ImVec2(10, 10); s.FramePadding = ImVec2(10, 6);
     s.ScrollbarSize = 8.0f;
-    s.Colors[ImGuiCol_WindowBg] = ImVec4(0.07f, 0.07f, 0.08f, 1);
-    s.Colors[ImGuiCol_ChildBg]  = ImVec4(0.10f, 0.10f, 0.11f, 1);
+    s.Colors[ImGuiCol_WindowBg] = ImVec4(0.10f, 0.10f, 0.11f, 1);
+    s.Colors[ImGuiCol_ChildBg]  = ImVec4(0.07f, 0.07f, 0.08f, 1);
     s.Colors[ImGuiCol_Border]   = ImVec4(0.02f, 0.02f, 0.03f, 1.0f);
     s.Colors[ImGuiCol_Button]   = ImVec4(0.16f, 0.52f, 0.32f, 1);
     s.Colors[ImGuiCol_ButtonHovered] = ImVec4(0.20f, 0.64f, 0.40f, 1);
@@ -820,14 +820,33 @@ static bool launcher_button(const char* label, const ImVec2& size) {
 static void draw_menu_view() {
     ImGuiStyle& style = ImGui::GetStyle();
     float full_w = ImGui::GetContentRegionAvail().x;
-    const float gap = 14.0f;
-    const float options_w = 250.0f;
-    const float top_h = 210.0f;
-    const float card_w = full_w - options_w - gap;
+    float full_h = ImGui::GetContentRegionAvail().y;
 
+    ImVec2 outer_p0 = ImGui::GetCursorScreenPos();
+    ImVec2 outer_p1 = ImVec2(outer_p0.x + full_w, outer_p0.y + full_h);
+    draw_outer_frame(outer_p0, outer_p1);
+
+    const float pad = 14.0f;
+    const float gap = 12.0f;
+    const float options_w = 230.0f;
+    const float top_h = 165.0f;
+    const float lbl_h = ImGui::GetTextLineHeight() + 4.0f;
+
+    ImGui::SetCursorScreenPos(ImVec2(outer_p0.x + pad, outer_p0.y + pad));
+
+    float card_w = full_w - pad * 2 - options_w - gap;
+
+    ImVec2 row_origin = ImGui::GetCursorScreenPos();
+    ImDrawList* dl = ImGui::GetWindowDrawList();
+
+    dl->AddText(ImVec2(row_origin.x + card_w + gap + 2, row_origin.y),
+        ImGui::GetColorU32(ImVec4(0.85f, 0.85f, 0.88f, 1.0f)), "Options");
+
+    ImGui::SetCursorScreenPos(ImVec2(row_origin.x, row_origin.y + lbl_h));
     {
         ImVec2 p0 = ImGui::GetCursorScreenPos();
         ImVec2 p1 = ImVec2(p0.x + card_w, p0.y + top_h);
+
         ImGui::BeginChild("##card", ImVec2(card_w, top_h), ImGuiChildFlags_Borders, 0);
         {
             ImGui::Dummy(ImVec2(0, 6));
@@ -856,10 +875,7 @@ static void draw_menu_view() {
 
         ImGui::BeginChild("##opts", ImVec2(options_w, top_h), ImGuiChildFlags_Borders, 0);
         {
-            ImGui::Dummy(ImVec2(0, 4));
-            ImGui::TextColored(ImVec4(0.78f, 0.78f, 0.82f, 1), "Options");
             ImGui::Dummy(ImVec2(0, 6));
-
             float bw = ImGui::GetContentRegionAvail().x;
             float bh = (ImGui::GetContentRegionAvail().y - ImGui::GetStyle().ItemSpacing.y) * 0.5f;
             if (bh < 50.0f) bh = 50.0f;
@@ -872,15 +888,23 @@ static void draw_menu_view() {
         draw_outer_frame(p0, p1);
     }
 
-    ImGui::Dummy(ImVec2(0, 6));
-    {
-        float sh = ImGui::GetContentRegionAvail().y;
-        ImVec2 p0 = ImGui::GetCursorScreenPos();
-        ImVec2 p1 = ImVec2(p0.x + ImGui::GetContentRegionAvail().x, p0.y + sh);
+    ImGui::SetCursorScreenPos(ImVec2(outer_p0.x + pad, outer_p0.y + pad + lbl_h + top_h + 6));
 
-        ImGui::BeginChild("##mstatus", ImVec2(0, sh), ImGuiChildFlags_Borders, 0);
-        ImGui::Dummy(ImVec2(0, 4));
-        ImGui::TextColored(ImVec4(0.78f, 0.78f, 0.82f, 1), "Status");
+    {
+        ImVec2 lbl_pos = ImGui::GetCursorScreenPos();
+        dl->AddText(lbl_pos, ImGui::GetColorU32(ImVec4(0.85f, 0.85f, 0.88f, 1.0f)), "Status");
+    }
+
+    ImGui::SetCursorScreenPos(ImVec2(outer_p0.x + pad,
+        outer_p0.y + pad + lbl_h + top_h + 6 + lbl_h));
+    {
+        float status_w = full_w - pad * 2;
+        float status_h = full_h - (pad * 2 + lbl_h + top_h + 6 + lbl_h);
+        if (status_h < 80) status_h = 80;
+        ImVec2 p0 = ImGui::GetCursorScreenPos();
+        ImVec2 p1 = ImVec2(p0.x + status_w, p0.y + status_h);
+
+        ImGui::BeginChild("##mstatus", ImVec2(status_w, status_h), ImGuiChildFlags_Borders, 0);
         ImGui::Dummy(ImVec2(0, 4));
         for (auto& e : g_menu_status) {
             if (e.second) ImGui::TextColored(ImVec4(0.55f, 0.90f, 0.30f, 1), "%s", e.first.c_str());
