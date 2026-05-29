@@ -576,8 +576,8 @@ static void apply_style() {
     s.WindowBorderSize = 0; s.FrameBorderSize = 0; s.ChildBorderSize = 1;
     s.WindowPadding = ImVec2(18, 16); s.ItemSpacing = ImVec2(10, 10); s.FramePadding = ImVec2(10, 6);
     s.ScrollbarSize = 8.0f;
-    s.Colors[ImGuiCol_WindowBg] = ImVec4(0.10f, 0.10f, 0.10f, 1);
-    s.Colors[ImGuiCol_ChildBg]  = ImVec4(0.06f, 0.06f, 0.06f, 1);
+    s.Colors[ImGuiCol_WindowBg] = ImVec4(0.05f, 0.05f, 0.05f, 1);
+    s.Colors[ImGuiCol_ChildBg]  = ImVec4(0.09f, 0.09f, 0.10f, 1);
     s.Colors[ImGuiCol_Border]   = ImVec4(0.22f, 0.22f, 0.24f, 1.0f);
     s.Colors[ImGuiCol_Button]   = ImVec4(0.16f, 0.52f, 0.32f, 1);
     s.Colors[ImGuiCol_ButtonHovered] = ImVec4(0.20f, 0.64f, 0.40f, 1);
@@ -620,6 +620,15 @@ static void draw_rgb_glow_line(ImDrawList* draw, ImVec2 pos, float width, float 
 
 static void draw_outer_frame(ImVec2 p0, ImVec2 p1) {
     ImDrawList* dl = ImGui::GetWindowDrawList();
+
+    ImU32 grad_top = ImGui::GetColorU32(ImVec4(1, 1, 1, 0.04f));
+    ImU32 grad_bot = ImGui::GetColorU32(ImVec4(0, 0, 0, 0.20f));
+    dl->AddRectFilledMultiColor(p0, p1, grad_top, grad_top, grad_bot, grad_bot);
+
+    ImU32 inner_shadow = ImGui::GetColorU32(ImVec4(0, 0, 0, 0.45f));
+    dl->AddLine(ImVec2(p0.x + 1, p0.y + 1), ImVec2(p1.x - 1, p0.y + 1), inner_shadow, 1.0f);
+    dl->AddLine(ImVec2(p0.x + 1, p0.y + 1), ImVec2(p0.x + 1, p1.y - 1), inner_shadow, 1.0f);
+
     ImU32 border = ImGui::GetColorU32(ImVec4(0.22f, 0.22f, 0.24f, 1.0f));
     dl->AddRect(p0, p1, border, 0.0f, 0, 1.0f);
 }
@@ -781,19 +790,33 @@ static bool launcher_button(const char* label, const ImVec2& size) {
     ImVec2 p0 = cursor;
     ImVec2 p1 = ImVec2(cursor.x + size.x, cursor.y + size.y);
 
-    ImU32 fill;
-    if (active)       fill = ImGui::GetColorU32(ImVec4(0.10f, 0.10f, 0.11f, 1.0f));
-    else if (hovered) fill = ImGui::GetColorU32(ImVec4(0.18f, 0.18f, 0.19f, 1.0f));
-    else              fill = ImGui::GetColorU32(ImVec4(0.14f, 0.14f, 0.15f, 1.0f));
+    ImU32 base, top, bot;
+    if (active) {
+        top = ImGui::GetColorU32(ImVec4(0.09f, 0.09f, 0.10f, 1.0f));
+        bot = ImGui::GetColorU32(ImVec4(0.13f, 0.13f, 0.14f, 1.0f));
+    } else if (hovered) {
+        top = ImGui::GetColorU32(ImVec4(0.22f, 0.22f, 0.24f, 1.0f));
+        bot = ImGui::GetColorU32(ImVec4(0.13f, 0.13f, 0.14f, 1.0f));
+    } else {
+        top = ImGui::GetColorU32(ImVec4(0.18f, 0.18f, 0.20f, 1.0f));
+        bot = ImGui::GetColorU32(ImVec4(0.10f, 0.10f, 0.11f, 1.0f));
+    }
 
-    dl->AddRectFilled(p0, p1, fill, 0.0f);
+    dl->AddRectFilledMultiColor(p0, p1, top, top, bot, bot);
+
+    ImU32 inner_shadow = ImGui::GetColorU32(ImVec4(0, 0, 0, 0.55f));
+    ImU32 inner_hi = ImGui::GetColorU32(ImVec4(1, 1, 1, 0.06f));
+    if (!active) {
+        dl->AddLine(ImVec2(p0.x + 1, p0.y + 1), ImVec2(p1.x - 1, p0.y + 1), inner_hi, 1.0f);
+        dl->AddLine(ImVec2(p0.x + 1, p1.y - 1), ImVec2(p1.x - 1, p1.y - 1), inner_shadow, 1.0f);
+    }
 
     ImU32 border = ImGui::GetColorU32(ImVec4(0.30f, 0.30f, 0.32f, 1.0f));
     dl->AddRect(p0, p1, border, 0.0f, 0, 1.0f);
 
     ImVec2 ts = ImGui::CalcTextSize(label);
     ImVec2 tp(p0.x + (size.x - ts.x) * 0.5f, p0.y + (size.y - ts.y) * 0.5f);
-    dl->AddText(tp, ImGui::GetColorU32(ImVec4(0.92f, 0.92f, 0.94f, 1.0f)), label);
+    dl->AddText(tp, ImGui::GetColorU32(ImVec4(0.95f, 0.95f, 0.97f, 1.0f)), label);
 
     return clicked;
 }
@@ -1015,7 +1038,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int) {
         ImGui_ImplDX11_NewFrame(); ImGui_ImplWin32_NewFrame(); ImGui::NewFrame();
         draw_ui();
         ImGui::Render();
-        const float clear[] = { 0.10f, 0.10f, 0.10f, 1.0f };
+        const float clear[] = { 0.05f, 0.05f, 0.05f, 1.0f };
         g_context->OMSetRenderTargets(1, &g_rtv, nullptr);
         g_context->ClearRenderTargetView(g_rtv, clear);
         ImGui_ImplDX11_RenderDrawData(ImGui::GetDrawData());
