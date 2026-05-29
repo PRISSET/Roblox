@@ -927,11 +927,12 @@ static void draw_menu_view() {
                 auto& e = g_menu_status[i];
                 float ry = base.y + row_h * (float)i;
                 if (e.second) {
-                    // highlight bar behind the active line (matches CS2 reference)
-                    sdl->AddRectFilled(
-                        ImVec2(base.x - 6.0f, ry - 2.0f),
-                        ImVec2(base.x - 6.0f + content_w + 6.0f, ry + row_h - 4.0f),
-                        ImGui::GetColorU32(ImVec4(0.16f, 0.16f, 0.16f, 1.0f)));
+                    // highlight bar behind the active line (matches CS2 reference) - lighter gray + top blik
+                    ImVec2 bar0(base.x - 6.0f, ry - 2.0f);
+                    ImVec2 bar1(base.x - 6.0f + content_w + 6.0f, ry + row_h - 4.0f);
+                    ImU32 bar_top = ImGui::GetColorU32(ImVec4(0.32f, 0.32f, 0.33f, 1.0f));
+                    ImU32 bar_bot = ImGui::GetColorU32(ImVec4(0.235f, 0.235f, 0.245f, 1.0f));
+                    sdl->AddRectFilledMultiColor(bar0, bar1, bar_top, bar_top, bar_bot, bar_bot);
                     sdl->AddText(ImVec2(base.x + text_indent, ry + 1.0f),
                         ImGui::GetColorU32(kAccentLime), e.first.c_str());
                 } else {
