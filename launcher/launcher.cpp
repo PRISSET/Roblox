@@ -23,7 +23,9 @@
 #include "../tc/ext/font/verdana_bold.h"
 #include "../tc/ext/font/tahoma_bold.h"
 #include "../tc/src/features/installer/roblox_logo.h"
-#include "../tc/src/render/textures/texture.h"
+
+#define STB_IMAGE_IMPLEMENTATION
+#include "../tc/ext/imgui/stb_image.h"
 
 #pragma comment(lib, "d3d11.lib")
 #pragma comment(lib, "dwmapi.lib")
@@ -449,6 +451,36 @@ static void apply_style() {
 }
 
 // ============================================================
+// Inline logo texture loader (stb_image -> DX11 SRV)
+// ============================================================
+static ID3D11ShaderResourceView* create_texture_from_png(ID3D11Device* dev, const unsigned char* data, int len) {
+    int w=0,h=0,ch=0;
+    unsigned char* pixels = stbi_load_from_memory(data, len, &w, &h, &ch, 4);
+    if(!pixels) return nullptr;
+
+    D3D11_TEXTURE2D_DESC desc={};
+    desc.Width=w; desc.Height=h; desc.MipLevels=1; desc.ArraySize=1;
+    desc.Format=DXGI_FORMAT_R8G8B8A8_UNORM; desc.SampleDesc.Count=1;
+    desc.Usage=D3D11_USAGE_DEFAULT; desc.BindFlags=D3D11_BIND_SHADER_RESOURCE;
+
+    D3D11_SUBRESOURCE_DATA sub={};
+    sub.pSysMem=pixels; sub.SysMemPitch=w*4;
+
+    ID3D11Texture2D* tex=nullptr;
+    dev->CreateTexture2D(&desc,&sub,&tex);
+    stbi_image_free(pixels);
+    if(!tex) return nullptr;
+
+    D3D11_SHADER_RESOURCE_VIEW_DESC srv={};
+    srv.Format=desc.Format; srv.ViewDimension=D3D11_SRV_DIMENSION_TEXTURE2D;
+    srv.Texture2D.MipLevels=1;
+    ID3D11ShaderResourceView* out=nullptr;
+    dev->CreateShaderResourceView(tex,&srv,&out);
+    tex->Release();
+    return out;
+}
+
+// ============================================================
 // WinMain entry point (no console window)
 // ============================================================
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int) {
@@ -497,7 +529,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int) {
     ImGui_ImplDX11_Init(g_device,g_context);
 
     // Load logo texture
-    g_logo_texture=D3D11CreateTextureFromBytes(g_device,roblox_logo_data,roblox_logo_size);
+    g_logo_texture=create_texture_from_png(g_device,roblox_logo_data,(int)roblox_logo_size);
 
     // Init deps and date
     init_deps();
