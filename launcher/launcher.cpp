@@ -37,8 +37,11 @@ static const char* kProductName = "Turtle.Club Loader";
 static constexpr int kInstallW = 520;
 static constexpr int kInstallH = 540;
 static constexpr int kMenuW   = 720;
-static constexpr int kMenuH   = 480;
+static constexpr int kMenuH   = 540;
 static constexpr float kTitleBarH = 32.0f;
+
+// Reference accent (CS2 loader) - lime/olive green used for product name + active status line
+static const ImVec4 kAccentLime = ImVec4(0.64f, 0.83f, 0.24f, 1.0f);
 
 enum class dep_kind {
     installer,
@@ -854,7 +857,7 @@ static void draw_menu_view() {
 
             ImGui::SetCursorPosX(ImGui::GetCursorPosX() + icon + 12);
             ImGui::BeginGroup();
-            ImGui::TextColored(ImVec4(0.55f, 0.92f, 0.62f, 1), "%s", kProductName);
+            ImGui::TextColored(kAccentLime, "%s", kProductName);
             ImGui::TextColored(ImVec4(0.70f, 0.70f, 0.75f, 1), "Updated %s", g_product_updated.c_str());
             ImGui::EndGroup();
         }
@@ -870,12 +873,13 @@ static void draw_menu_view() {
         ImGui::BeginChild("##opts", ImVec2(options_w, top_h), ImGuiChildFlags_Borders,
             ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
         {
-            ImGui::Dummy(ImVec2(0, 4));
+            ImGui::Dummy(ImVec2(0, 6));
             float bw = ImGui::GetContentRegionAvail().x;
-            const float bh = 46.0f;
+            const float bh = 58.0f;
             if (launcher_button("Inject", ImVec2(bw, bh))) {
                 if (launch_target()) g_should_close = true;
             }
+            ImGui::Dummy(ImVec2(0, 2));
             if (launcher_button("Exit", ImVec2(bw, bh))) { g_should_close = true; }
         }
         ImGui::EndChild();
@@ -900,10 +904,30 @@ static void draw_menu_view() {
 
         ImGui::BeginChild("##mstatus", ImVec2(status_w, status_h), ImGuiChildFlags_Borders,
             ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
-        ImGui::Dummy(ImVec2(0, 4));
-        for (auto& e : g_menu_status) {
-            if (e.second) ImGui::TextColored(ImVec4(0.55f, 0.90f, 0.30f, 1), "%s", e.first.c_str());
-            else          ImGui::TextColored(ImVec4(0.80f, 0.80f, 0.85f, 1), "%s", e.first.c_str());
+        {
+            ImDrawList* sdl = ImGui::GetWindowDrawList();
+            const float row_h = ImGui::GetTextLineHeight() + 12.0f;
+            const float text_indent = 18.0f;
+            ImVec2 base = ImGui::GetCursorScreenPos();
+            base.y += 6.0f;
+            float content_w = ImGui::GetContentRegionAvail().x;
+
+            for (size_t i = 0; i < g_menu_status.size(); i++) {
+                auto& e = g_menu_status[i];
+                float ry = base.y + row_h * (float)i;
+                if (e.second) {
+                    // highlight bar behind the active line (matches CS2 reference)
+                    sdl->AddRectFilled(
+                        ImVec2(base.x - 6.0f, ry - 2.0f),
+                        ImVec2(base.x - 6.0f + content_w + 6.0f, ry + row_h - 4.0f),
+                        ImGui::GetColorU32(ImVec4(0.16f, 0.16f, 0.16f, 1.0f)));
+                    sdl->AddText(ImVec2(base.x + text_indent, ry + 1.0f),
+                        ImGui::GetColorU32(kAccentLime), e.first.c_str());
+                } else {
+                    sdl->AddText(ImVec2(base.x + text_indent, ry + 1.0f),
+                        ImGui::GetColorU32(ImVec4(0.82f, 0.82f, 0.86f, 1.0f)), e.first.c_str());
+                }
+            }
         }
         ImGui::EndChild();
         draw_outer_frame(p0, p1);
