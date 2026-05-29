@@ -36,8 +36,8 @@ static const char* kProductName = "Turtle.Club Loader";
 
 static constexpr int kInstallW = 520;
 static constexpr int kInstallH = 540;
-static constexpr int kMenuW   = 880;
-static constexpr int kMenuH   = 600;
+static constexpr int kMenuW   = 720;
+static constexpr int kMenuH   = 480;
 static constexpr float kTitleBarH = 32.0f;
 
 enum class dep_kind {
@@ -783,25 +783,22 @@ static bool launcher_button(const char* label, const ImVec2& size) {
     ImDrawList* dl = ImGui::GetWindowDrawList();
     ImVec2 p0 = cursor;
     ImVec2 p1 = ImVec2(cursor.x + size.x, cursor.y + size.y);
-    const float rounding = 3.0f;
 
     ImVec4 top, bot;
     if (active) {
-        top = ImVec4(0.10f, 0.10f, 0.12f, 1.0f);
-        bot = ImVec4(0.18f, 0.18f, 0.21f, 1.0f);
+        top = ImVec4(0.06f, 0.06f, 0.07f, 1.0f);
+        bot = ImVec4(0.12f, 0.12f, 0.14f, 1.0f);
     } else if (hovered) {
-        top = ImVec4(0.30f, 0.30f, 0.34f, 1.0f);
-        bot = ImVec4(0.10f, 0.10f, 0.12f, 1.0f);
+        top = ImVec4(0.18f, 0.18f, 0.20f, 1.0f);
+        bot = ImVec4(0.06f, 0.06f, 0.07f, 1.0f);
     } else {
-        top = ImVec4(0.24f, 0.24f, 0.27f, 1.0f);
-        bot = ImVec4(0.08f, 0.08f, 0.10f, 1.0f);
+        top = ImVec4(0.14f, 0.14f, 0.16f, 1.0f);
+        bot = ImVec4(0.05f, 0.05f, 0.06f, 1.0f);
     }
 
     int vtx_start = dl->VtxBuffer.Size;
-    dl->AddRectFilled(p0, p1, ImGui::GetColorU32(ImVec4(1, 1, 1, 1)), rounding);
+    dl->AddRectFilled(p0, p1, ImGui::GetColorU32(ImVec4(1, 1, 1, 1)), 0.0f);
     int vtx_end = dl->VtxBuffer.Size;
-    ImU32 ctop = ImGui::GetColorU32(top);
-    ImU32 cbot = ImGui::GetColorU32(bot);
     for (int i = vtx_start; i < vtx_end; i++) {
         ImDrawVert& v = dl->VtxBuffer[i];
         float t = (v.pos.y - p0.y) / size.y;
@@ -813,14 +810,14 @@ static bool launcher_button(const char* label, const ImVec2& size) {
         v.col = ImGui::GetColorU32(c);
     }
 
-    ImU32 outer  = ImGui::GetColorU32(ImVec4(0.02f, 0.02f, 0.03f, 1.0f));
-    ImU32 inner  = ImGui::GetColorU32(ImVec4(0.42f, 0.42f, 0.46f, 1.0f));
-    dl->AddRect(p0, p1, outer, rounding, 0, 1.0f);
-    dl->AddRect(ImVec2(p0.x + 1, p0.y + 1), ImVec2(p1.x - 1, p1.y - 1), inner, rounding, 0, 1.0f);
+    ImU32 outer = ImGui::GetColorU32(ImVec4(0.02f, 0.02f, 0.03f, 1.0f));
+    ImU32 inner = ImGui::GetColorU32(ImVec4(0.30f, 0.30f, 0.34f, 1.0f));
+    dl->AddRect(p0, p1, outer, 0.0f, 0, 1.0f);
+    dl->AddRect(ImVec2(p0.x + 1, p0.y + 1), ImVec2(p1.x - 1, p1.y - 1), inner, 0.0f, 0, 1.0f);
 
     ImVec2 ts = ImGui::CalcTextSize(label);
     ImVec2 tp(p0.x + (size.x - ts.x) * 0.5f, p0.y + (size.y - ts.y) * 0.5f);
-    dl->AddText(tp, ImGui::GetColorU32(ImVec4(0.95f, 0.95f, 0.97f, 1.0f)), label);
+    dl->AddText(tp, ImGui::GetColorU32(ImVec4(0.92f, 0.92f, 0.94f, 1.0f)), label);
 
     return clicked;
 }
@@ -836,9 +833,9 @@ static void draw_menu_view() {
 
     const float pad = 14.0f;
     const float gap = 10.0f;
-    const float options_w = 220.0f;
-    const float top_h = 175.0f;
-    const float lbl_h = ImGui::GetTextLineHeight() + 6.0f;
+    const float options_w = 200.0f;
+    const float top_h = 145.0f;
+    const float lbl_h = ImGui::GetTextLineHeight() + 4.0f;
 
     ImGui::SetCursorScreenPos(ImVec2(outer_p0.x + pad, outer_p0.y + pad));
 
@@ -883,10 +880,9 @@ static void draw_menu_view() {
 
         ImGui::BeginChild("##opts", ImVec2(options_w, top_h), ImGuiChildFlags_Borders, 0);
         {
-            ImGui::Dummy(ImVec2(0, 6));
+            ImGui::Dummy(ImVec2(0, 8));
             float bw = ImGui::GetContentRegionAvail().x;
-            float bh = (ImGui::GetContentRegionAvail().y - ImGui::GetStyle().ItemSpacing.y) * 0.5f;
-            if (bh < 50.0f) bh = 50.0f;
+            const float bh = 48.0f;
             if (launcher_button("Inject", ImVec2(bw, bh))) {
                 if (launch_target()) g_should_close = true;
             }
