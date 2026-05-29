@@ -788,20 +788,25 @@ static bool launcher_button(const char* label, const ImVec2& size) {
 
     ImU32 base, top, bot;
     if (active) {
-        top = ImGui::GetColorU32(ImVec4(0.060f, 0.060f, 0.060f, 1.0f));
-        bot = ImGui::GetColorU32(ImVec4(0.075f, 0.075f, 0.075f, 1.0f));
+        top = ImGui::GetColorU32(ImVec4(0.135f, 0.135f, 0.140f, 1.0f));
+        bot = ImGui::GetColorU32(ImVec4(0.105f, 0.105f, 0.110f, 1.0f));
     } else if (hovered) {
-        top = ImGui::GetColorU32(ImVec4(0.105f, 0.105f, 0.105f, 1.0f));
-        bot = ImGui::GetColorU32(ImVec4(0.075f, 0.075f, 0.075f, 1.0f));
+        top = ImGui::GetColorU32(ImVec4(0.255f, 0.255f, 0.265f, 1.0f));
+        bot = ImGui::GetColorU32(ImVec4(0.165f, 0.165f, 0.175f, 1.0f));
     } else {
-        top = ImGui::GetColorU32(ImVec4(0.075f, 0.075f, 0.075f, 1.0f));
-        bot = ImGui::GetColorU32(ImVec4(0.075f, 0.075f, 0.075f, 1.0f));
+        top = ImGui::GetColorU32(ImVec4(0.215f, 0.215f, 0.225f, 1.0f));
+        bot = ImGui::GetColorU32(ImVec4(0.140f, 0.140f, 0.150f, 1.0f));
     }
 
     dl->AddRectFilledMultiColor(p0, p1, top, top, bot, bot);
 
+    // subtle top highlight (blik) like the reference buttons
+    ImU32 hi0 = ImGui::GetColorU32(ImVec4(1.0f, 1.0f, 1.0f, hovered ? 0.10f : 0.06f));
+    ImU32 hi1 = ImGui::GetColorU32(ImVec4(1.0f, 1.0f, 1.0f, 0.0f));
+    dl->AddRectFilledMultiColor(p0, ImVec2(p1.x, p0.y + size.y * 0.5f), hi0, hi0, hi1, hi1);
+
     ImU32 dark_rim = ImGui::GetColorU32(ImVec4(0.020f, 0.020f, 0.020f, 1.0f));
-    ImU32 light_rim = ImGui::GetColorU32(ImVec4(0.145f, 0.145f, 0.145f, 1.0f));
+    ImU32 light_rim = ImGui::GetColorU32(ImVec4(0.32f, 0.32f, 0.34f, 1.0f));
 
     dl->AddRect(p0, p1, dark_rim, 0.0f, 0, 1.0f);
     dl->AddRect(ImVec2(p0.x + 1, p0.y + 1), ImVec2(p1.x - 1, p1.y - 1), light_rim, 0.0f, 0, 1.0f);
@@ -873,13 +878,19 @@ static void draw_menu_view() {
         ImGui::BeginChild("##opts", ImVec2(options_w, top_h), ImGuiChildFlags_Borders,
             ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
         {
-            ImGui::Dummy(ImVec2(0, 6));
             float bw = ImGui::GetContentRegionAvail().x;
-            const float bh = 58.0f;
+            float avail_h = ImGui::GetContentRegionAvail().y;
+            const float bgap = 12.0f;
+            float bh = (avail_h - bgap) * 0.5f;
+
+            float start_x = ImGui::GetCursorPosX();
+            float start_y = ImGui::GetCursorPosY();
+
+            ImGui::SetCursorPos(ImVec2(start_x, start_y));
             if (launcher_button("Inject", ImVec2(bw, bh))) {
                 if (launch_target()) g_should_close = true;
             }
-            ImGui::Dummy(ImVec2(0, 2));
+            ImGui::SetCursorPos(ImVec2(start_x, start_y + bh + bgap));
             if (launcher_button("Exit", ImVec2(bw, bh))) { g_should_close = true; }
         }
         ImGui::EndChild();
