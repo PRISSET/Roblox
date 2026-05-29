@@ -1,7 +1,5 @@
-// Turtle.Club Launcher (Windows GUI - DX11 + ImGui)
-// Полноценный лаунчер: проверяет VC++ Redist, DirectX, .NET; скачивает tc1.exe + DLL.
-
 #include <Windows.h>
+#include <tlhelp32.h>
 #include <d3d11.h>
 #include <dwmapi.h>
 #include <urlmon.h>
@@ -33,33 +31,26 @@
 
 extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND, UINT, WPARAM, LPARAM);
 
-// ============================================================
-// Константы
-// ============================================================
 static const char* GITHUB_RAW = "https://raw.githubusercontent.com/PRISSET/Roblox/main/bin/";
 static const char* kProductName = "Turtle.Club Loader";
 
-// Окно сделано компактным под 5 строк зависимостей.
 static constexpr int kInstallW = 520;
 static constexpr int kInstallH = 540;
 static constexpr int kMenuW   = 820;
 static constexpr int kMenuH   = 560;
 static constexpr float kTitleBarH = 32.0f;
 
-// ============================================================
-// Типы зависимостей (как в installer_t)
-// ============================================================
 enum class dep_kind {
-    installer,    // exe-инсталлер, запускается тихо
-    raw_file,     // одиночный raw файл
-    raw_group,    // группа raw файлов (все скачиваются вместе как один компонент)
+    installer,
+    raw_file,
+    raw_group,
 };
 
 enum class check_kind {
-    file,            // файл существует на диске
-    load_library,    // DLL должна реально загружаться
-    registry_dword,  // HKLM ключ + значение != 0
-    dotnet_runtime,  // .NET runtime со старшей версией
+    file,
+    load_library,
+    registry_dword,
+    dotnet_runtime,
 };
 
 struct dependency_t {
@@ -76,25 +67,20 @@ struct dependency_t {
     std::string reg_value;
     std::string version_prefix;
 
-    // Для raw_group: список (filename, base_url_unused). Все файлы качаются с GITHUB_RAW + filename
-    // и проверяются на наличие в install dir.
     std::vector<std::string> group_files;
 
     bool installed = false;
     bool downloading = false;
     bool installing = false;
     float progress = 0.0f;
-    int  group_done = 0;     // сколько файлов из группы скачано (для прогресс-надписи)
-    int  group_total = 0;    // всего файлов в группе
-    bool failed = false;     // последняя попытка установки/скачивания провалилась
+    int  group_done = 0;
+    int  group_total = 0;
+    bool failed = false;
     std::string status;
 };
 
 enum class app_view { install, menu };
 
-// ============================================================
-// Глобальное состояние
-// ============================================================
 static HWND g_hwnd = nullptr;
 static WNDCLASSEX g_wc = {};
 static ID3D11Device* g_device = nullptr;
@@ -124,9 +110,6 @@ static std::string g_product_updated;
 static bool g_dragging = false;
 static POINT g_drag_offset = {};
 
-// ============================================================
-// Вспомогательные функции
-// ============================================================
 static std::filesystem::path get_install_dir() {
     char p[MAX_PATH] = {}; GetModuleFileNameA(nullptr, p, MAX_PATH);
     return std::filesystem::path(p).parent_path() / "TurtleClub";
@@ -136,15 +119,43 @@ static std::string resolve_in_install_dir(const std::string& rel) {
     return (get_install_dir() / rel).string();
 }
 
+static std::filesystem::path get_marker_path() {
+    return get_install_dir() / "installed.flag";
+}
+
+static void write_install_marker() {
+    std::error_code ec;
+    std::filesystem::create_directories(get_install_dir(), ec);
+    auto path = get_marker_path();
+    FILE* f = nullptr; fopen_s(&f, path.string().c_str(), "w");
+    if (f) { fputs("ok", f); fclose(f); }
+}
+
+static bool has_install_marker() {
+    std::error_code ec;
+    return std::filesystem::exists(get_marker_path(), ec);
+}
+
+static bool is_roblox_running() {
+    HANDLE snap = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
+    if (snap == INVALID_HANDLE_VALUE) return false;
+    PROCESSENTRY32 pe; pe.dwSize = sizeof(pe);
+    bool found = false;
+    if (Process32First(snap, &pe)) {
+        do {
+            if (_stricmp(pe.szExeFile, "RobloxPlayerBeta.exe") == 0) { found = true; break; }
+        } while (Process32Next(snap, &pe));
+    }
+    CloseHandle(snap);
+    return found;
+}
+
 static void add_log(const std::string& s) {
     std::lock_guard<std::mutex> lk(g_log_mutex);
     g_log.push_back(s);
     g_log_scroll_pending = true;
 }
 
-// ============================================================
-// Прогресс скачивания
-// ============================================================
 class DownloadProgress : public IBindStatusCallback {
 public:
     float* pp = nullptr;
@@ -178,14 +189,10 @@ static bool download_file(const std::string& url, const std::string& dest, float
     return SUCCEEDED(hr);
 }
 
-// ============================================================
-// Список зависимостей (Microsoft runtimes + raw файлы)
-// ============================================================
 static void init_dependencies() {
     g_deps.clear();
     dependency_t d;
 
-    // ---- Microsoft VC++ Redist x64 ----
     d = {};
     d.name = "VC++ Redist 2015-2022 (x64)";
     d.kind = dep_kind::installer;
@@ -196,9 +203,6 @@ static void init_dependencies() {
     d.reg_value  = "Installed";
     g_deps.push_back(d);
 
-    // ---- Microsoft VC++ Redist x86 ----
-    // ВАЖНО: x86 redist на 64-битной Windows регистрируется в WOW6432Node,
-    // поэтому читаем 32-битную ветку реестра.
     d = {};
     d.name = "VC++ Redist 2015-2022 (x86)";
     d.kind = dep_kind::installer;
@@ -207,10 +211,9 @@ static void init_dependencies() {
     d.check = check_kind::registry_dword;
     d.reg_subkey = "SOFTWARE\\Microsoft\\VisualStudio\\14.0\\VC\\Runtimes\\x86";
     d.reg_value  = "Installed";
-    d.version_prefix = "x86";  // флаг для is_dependency_installed читать 32-bit view
+    d.version_prefix = "x86";
     g_deps.push_back(d);
 
-    // ---- DirectX End-User Runtime ----
     d = {};
     d.name = "DirectX End-User Runtime";
     d.kind = dep_kind::installer;
@@ -220,7 +223,6 @@ static void init_dependencies() {
     d.check_path = "d3dx9_43.dll";
     g_deps.push_back(d);
 
-    // ---- .NET Desktop Runtime 8.0 ----
     d = {};
     d.name = ".NET Desktop Runtime 8.0";
     d.kind = dep_kind::installer;
@@ -231,7 +233,6 @@ static void init_dependencies() {
     d.version_prefix = "8.";
     g_deps.push_back(d);
 
-    // ---- Loader Components (объединённая группа: tc1.exe + все DLL) ----
     d = {};
     d.name = "Loader Components";
     d.kind = dep_kind::raw_group;
@@ -251,11 +252,7 @@ static void init_dependencies() {
     g_deps.push_back(d);
 }
 
-// ============================================================
-// Проверка установлена ли зависимость
-// ============================================================
 static bool is_dependency_installed(const dependency_t& dep) {
-    // raw_group: все файлы из группы должны существовать
     if (dep.kind == dep_kind::raw_group) {
         for (const auto& f : dep.group_files) {
             if (!std::filesystem::exists(resolve_in_install_dir(f))) return false;
@@ -277,8 +274,6 @@ static bool is_dependency_installed(const dependency_t& dep) {
     }
 
     case check_kind::registry_dword: {
-        // Для x86 redist пробуем сначала 32-bit ветку (WOW6432Node),
-        // потом 64-bit. Для остальных только 64-bit.
         REGSAM views[2];
         int view_count;
         if (dep.version_prefix == "x86") {
@@ -342,11 +337,7 @@ static void build_menu_status() {
     g_menu_status.push_back({present == (int)g_deps.size() ? "Ready to launch" : "Some components missing", true});
 }
 
-// ============================================================
-// Установка одной зависимости
-// ============================================================
 static void install_dependency(dependency_t& dep) {
-    // ---- raw_group: качаем все файлы группы по очереди ----
     if (dep.kind == dep_kind::raw_group) {
         auto dir = get_install_dir();
         std::error_code ec;
@@ -364,7 +355,6 @@ static void install_dependency(dependency_t& dep) {
             const auto& fname = dep.group_files[i];
             auto dest = (dir / fname).string();
 
-            // Если файл уже есть - пропускаем но считаем как готовый
             if (std::filesystem::exists(dest, ec)) {
                 std::lock_guard<std::mutex> lk(g_mutex);
                 ok_count++;
@@ -406,7 +396,6 @@ static void install_dependency(dependency_t& dep) {
         return;
     }
 
-    // ---- raw_file: одиночный файл ----
     if (dep.kind == dep_kind::raw_file) {
         std::filesystem::path dest(dep.dest_path);
         std::error_code ec;
@@ -431,7 +420,6 @@ static void install_dependency(dependency_t& dep) {
         return;
     }
 
-    // ---- installer: качаем в TEMP и запускаем тихо ----
     char temp_path[MAX_PATH]; GetTempPathA(MAX_PATH, temp_path);
     std::string filename = dep.name;
     for (auto& c : filename) if (c == ' ' || c == '+' || c == '(' || c == ')') c = '_';
@@ -511,11 +499,22 @@ static void install_all() {
     g_installing = false;
     g_done = true;
     add_log("All dependencies processed.");
+
+    bool all_ok = true;
+    for (const auto& d : g_deps) if (!d.installed) { all_ok = false; break; }
+    if (all_ok) write_install_marker();
+
     build_menu_status();
     g_view = app_view::menu;
 }
 
 static bool launch_target() {
+    if (!is_roblox_running()) {
+        add_log("ERROR: launch Roblox first");
+        MessageBoxA(g_hwnd, "Launch Roblox first!", "Turtle.Club Launcher",
+            MB_OK | MB_ICONWARNING | MB_TOPMOST);
+        return false;
+    }
     auto target = (get_install_dir() / "tc1.exe").string();
     std::error_code ec;
     if (!std::filesystem::exists(target, ec)) { add_log("ERROR: tc1.exe not found"); return false; }
@@ -528,9 +527,6 @@ static bool launch_target() {
     return false;
 }
 
-// ============================================================
-// Window proc + перетаскивание окна
-// ============================================================
 static LRESULT CALLBACK wnd_proc(HWND h, UINT m, WPARAM w, LPARAM l) {
     if (ImGui_ImplWin32_WndProcHandler(h, m, w, l)) return true;
     switch (m) {
@@ -572,19 +568,17 @@ static void resize_window_for_view(app_view v) {
     g_window_sized_for = v;
 }
 
-// ============================================================
-// Стиль и UI helpers
-// ============================================================
+
 static void apply_style() {
     ImGui::StyleColorsDark();
     ImGuiStyle& s = ImGui::GetStyle();
-    s.WindowRounding = 0; s.FrameRounding = 6; s.GrabRounding = 6; s.ChildRounding = 6;
+    s.WindowRounding = 0; s.FrameRounding = 2; s.GrabRounding = 2; s.ChildRounding = 2;
     s.WindowBorderSize = 0; s.FrameBorderSize = 0; s.ChildBorderSize = 1;
     s.WindowPadding = ImVec2(18, 16); s.ItemSpacing = ImVec2(10, 10); s.FramePadding = ImVec2(10, 6);
     s.ScrollbarSize = 8.0f;
     s.Colors[ImGuiCol_WindowBg] = ImVec4(0.07f, 0.07f, 0.08f, 1);
     s.Colors[ImGuiCol_ChildBg]  = ImVec4(0.10f, 0.10f, 0.11f, 1);
-    s.Colors[ImGuiCol_Border]   = ImVec4(0.20f, 0.20f, 0.23f, 1);
+    s.Colors[ImGuiCol_Border]   = ImVec4(0.02f, 0.02f, 0.03f, 1.0f);
     s.Colors[ImGuiCol_Button]   = ImVec4(0.16f, 0.52f, 0.32f, 1);
     s.Colors[ImGuiCol_ButtonHovered] = ImVec4(0.20f, 0.64f, 0.40f, 1);
     s.Colors[ImGuiCol_ButtonActive]  = ImVec4(0.13f, 0.44f, 0.27f, 1);
@@ -624,6 +618,14 @@ static void draw_rgb_glow_line(ImDrawList* draw, ImVec2 pos, float width, float 
     }
 }
 
+static void draw_outer_frame(ImVec2 p0, ImVec2 p1) {
+    ImDrawList* dl = ImGui::GetWindowDrawList();
+    ImU32 outer  = ImGui::GetColorU32(ImVec4(0.02f, 0.02f, 0.03f, 1.0f));
+    ImU32 inner  = ImGui::GetColorU32(ImVec4(0.30f, 0.30f, 0.34f, 1.0f));
+    dl->AddRect(p0, p1, outer, 0.0f, 0, 1.0f);
+    dl->AddRect(ImVec2(p0.x + 1, p0.y + 1), ImVec2(p1.x - 1, p1.y - 1), inner, 0.0f, 0, 1.0f);
+}
+
 static void draw_status_badge(const char* text, ImVec4 bg, ImVec4 fg) {
     ImDrawList* draw = ImGui::GetWindowDrawList();
     ImVec2 ts = ImGui::CalcTextSize(text); float px = 9, py = 3;
@@ -635,9 +637,6 @@ static void draw_status_badge(const char* text, ImVec4 bg, ImVec4 fg) {
     ImGui::Dummy(bs);
 }
 
-// ============================================================
-// Кастомный тайтлбар с кнопками свернуть/закрыть
-// ============================================================
 static void draw_title_bar() {
     ImGuiIO& io = ImGui::GetIO();
     float w = io.DisplaySize.x;
@@ -646,7 +645,6 @@ static void draw_title_bar() {
     draw->AddRectFilled(ImVec2(0, 0), ImVec2(w, kTitleBarH),
         ImGui::GetColorU32(ImVec4(0.10f, 0.10f, 0.12f, 1.0f)));
 
-    // Заголовок
     ImVec2 text_pos(14.0f, (kTitleBarH - ImGui::GetTextLineHeight()) * 0.5f);
     draw->AddText(text_pos, ImGui::GetColorU32(ImVec4(0.85f, 0.88f, 0.92f, 1.0f)),
         "Turtle.Club Launcher");
@@ -655,7 +653,6 @@ static void draw_title_bar() {
     ImVec2 mouse = io.MousePos;
     bool clicked = ImGui::IsMouseClicked(ImGuiMouseButton_Left);
 
-    // Кнопка закрыть (×)
     {
         ImVec2 p0(w - btn_w, 0), p1(w, kTitleBarH);
         bool hovered = mouse.x >= p0.x && mouse.x <= p1.x && mouse.y >= 0 && mouse.y <= kTitleBarH;
@@ -669,7 +666,6 @@ static void draw_title_bar() {
         if (hovered && clicked) g_should_close = true;
     }
 
-    // Кнопка свернуть (—)
     {
         ImVec2 p0(w - btn_w * 2, 0), p1(w - btn_w, kTitleBarH);
         bool hovered = mouse.x >= p0.x && mouse.x <= p1.x && mouse.y >= 0 && mouse.y <= kTitleBarH;
@@ -681,7 +677,6 @@ static void draw_title_bar() {
         if (hovered && clicked) ShowWindow(g_hwnd, SW_MINIMIZE);
     }
 
-    // Перетаскивание окна
     bool over_buttons = mouse.x >= (w - btn_w * 2);
     bool in_titlebar = mouse.y >= 0 && mouse.y <= kTitleBarH;
     if (in_titlebar && !over_buttons && clicked && !g_dragging) {
@@ -689,9 +684,6 @@ static void draw_title_bar() {
     }
 }
 
-// ============================================================
-// View: установка зависимостей
-// ============================================================
 static void draw_install_view() {
     ImGuiStyle& style = ImGui::GetStyle();
     float avail_w = ImGui::GetContentRegionAvail().x;
@@ -708,7 +700,6 @@ static void draw_install_view() {
     ImGui::TextColored(ImVec4(0.55f, 0.55f, 0.60f, 1), "%s", sub);
     ImGui::Spacing();
 
-    // Размеры списка под все строки без скролла
     const float row_text_h = ImGui::GetTextLineHeight();
     const float bar_h = 5.0f;
     const float row_h = row_text_h + bar_h + style.ItemSpacing.y;
@@ -733,7 +724,6 @@ static void draw_install_view() {
         ImGui::PushID((int)i);
         ImGui::AlignTextToFramePadding();
 
-        // Для raw_group показываем счётчик X/Y
         if (dep.kind == dep_kind::raw_group && dep.group_total > 0) {
             char label[160];
             _snprintf_s(label, sizeof(label), _TRUNCATE, "%s  (%d/%d files)",
@@ -781,21 +771,50 @@ static void draw_install_view() {
     }
 }
 
-// ============================================================
-// View: лаунчер-меню (после установки)
-// ============================================================
-// Тёмно-серая кнопка с тонкой границей (стиль из референса).
 static bool launcher_button(const char* label, const ImVec2& size) {
-    ImGui::PushStyleColor(ImGuiCol_Button,        ImVec4(0.10f, 0.10f, 0.12f, 1.0f));
-    ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.16f, 0.16f, 0.19f, 1.0f));
-    ImGui::PushStyleColor(ImGuiCol_ButtonActive,  ImVec4(0.08f, 0.08f, 0.10f, 1.0f));
-    ImGui::PushStyleColor(ImGuiCol_Border,        ImVec4(0.22f, 0.22f, 0.26f, 1.0f));
-    ImGui::PushStyleVar(ImGuiStyleVar_FrameBorderSize, 1.0f);
-    ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 4.0f);
-    bool c = ImGui::Button(label, size);
-    ImGui::PopStyleVar(2);
-    ImGui::PopStyleColor(4);
-    return c;
+    ImGuiIO& io = ImGui::GetIO();
+    ImVec2 cursor = ImGui::GetCursorScreenPos();
+    ImGui::PushID(label);
+    bool clicked = ImGui::InvisibleButton("##btn", size);
+    bool hovered = ImGui::IsItemHovered();
+    bool active  = ImGui::IsItemActive();
+    ImGui::PopID();
+
+    ImDrawList* dl = ImGui::GetWindowDrawList();
+    ImVec2 p0 = cursor;
+    ImVec2 p1 = ImVec2(cursor.x + size.x, cursor.y + size.y);
+
+    ImVec4 top, bot;
+    if (active) {
+        top = ImVec4(0.07f, 0.07f, 0.09f, 1.0f);
+        bot = ImVec4(0.10f, 0.10f, 0.12f, 1.0f);
+    } else if (hovered) {
+        top = ImVec4(0.20f, 0.20f, 0.23f, 1.0f);
+        bot = ImVec4(0.10f, 0.10f, 0.12f, 1.0f);
+    } else {
+        top = ImVec4(0.16f, 0.16f, 0.19f, 1.0f);
+        bot = ImVec4(0.08f, 0.08f, 0.10f, 1.0f);
+    }
+
+    ImU32 ctop = ImGui::GetColorU32(top);
+    ImU32 cbot = ImGui::GetColorU32(bot);
+    dl->AddRectFilledMultiColor(p0, p1, ctop, ctop, cbot, cbot);
+
+    ImU32 outer  = ImGui::GetColorU32(ImVec4(0.02f, 0.02f, 0.03f, 1.0f));
+    ImU32 inner  = ImGui::GetColorU32(ImVec4(0.32f, 0.32f, 0.36f, 1.0f));
+    ImU32 bottom = ImGui::GetColorU32(ImVec4(0.04f, 0.04f, 0.05f, 1.0f));
+
+    dl->AddRect(p0, p1, outer, 0.0f, 0, 1.0f);
+    dl->AddLine(ImVec2(p0.x + 1, p0.y + 1), ImVec2(p1.x - 1, p0.y + 1), inner, 1.0f);
+    dl->AddLine(ImVec2(p0.x + 1, p0.y + 1), ImVec2(p0.x + 1, p1.y - 1), inner, 1.0f);
+    dl->AddLine(ImVec2(p0.x + 1, p1.y - 1), ImVec2(p1.x - 1, p1.y - 1), bottom, 1.0f);
+    dl->AddLine(ImVec2(p1.x - 1, p0.y + 1), ImVec2(p1.x - 1, p1.y - 1), bottom, 1.0f);
+
+    ImVec2 ts = ImGui::CalcTextSize(label);
+    ImVec2 tp(p0.x + (size.x - ts.x) * 0.5f, p0.y + (size.y - ts.y) * 0.5f);
+    dl->AddText(tp, ImGui::GetColorU32(ImVec4(0.92f, 0.92f, 0.94f, 1.0f)), label);
+
+    return clicked;
 }
 
 static void draw_menu_view() {
@@ -803,67 +822,81 @@ static void draw_menu_view() {
     float full_w = ImGui::GetContentRegionAvail().x;
     const float gap = 14.0f;
     const float options_w = 250.0f;
-    const float top_h = 200.0f;
+    const float top_h = 210.0f;
     const float card_w = full_w - options_w - gap;
 
-    // ------------------ Карточка продукта ------------------
-    ImGui::BeginChild("##card", ImVec2(card_w, top_h), ImGuiChildFlags_Borders, 0);
     {
-        ImGui::Dummy(ImVec2(0, 4));
-        float icon = 56.0f;
-        ImVec2 p = ImGui::GetCursorScreenPos();
-        if (g_logo_texture)
-            ImGui::GetWindowDrawList()->AddImage((ImTextureID)g_logo_texture, p, ImVec2(p.x + icon, p.y + icon));
-        else
-            ImGui::GetWindowDrawList()->AddRectFilled(p, ImVec2(p.x + icon, p.y + icon),
-                ImGui::GetColorU32(ImVec4(0.18f, 0.22f, 0.28f, 1)), 6.0f);
+        ImVec2 p0 = ImGui::GetCursorScreenPos();
+        ImVec2 p1 = ImVec2(p0.x + card_w, p0.y + top_h);
+        ImGui::BeginChild("##card", ImVec2(card_w, top_h), ImGuiChildFlags_Borders, 0);
+        {
+            ImGui::Dummy(ImVec2(0, 6));
+            float icon = 48.0f;
+            ImVec2 p = ImGui::GetCursorScreenPos();
+            if (g_logo_texture)
+                ImGui::GetWindowDrawList()->AddImage((ImTextureID)g_logo_texture, p, ImVec2(p.x + icon, p.y + icon));
+            else
+                ImGui::GetWindowDrawList()->AddRectFilled(p, ImVec2(p.x + icon, p.y + icon),
+                    ImGui::GetColorU32(ImVec4(0.18f, 0.22f, 0.28f, 1)), 4.0f);
 
-        ImGui::SetCursorPosX(ImGui::GetCursorPosX() + icon + 14);
-        ImGui::BeginGroup();
-        ImGui::TextColored(ImVec4(0.55f, 0.92f, 0.62f, 1), "%s", kProductName);
-        ImGui::TextColored(ImVec4(0.70f, 0.70f, 0.75f, 1), "Updated %s", g_product_updated.c_str());
-        ImGui::EndGroup();
+            ImGui::SetCursorPosX(ImGui::GetCursorPosX() + icon + 12);
+            ImGui::BeginGroup();
+            ImGui::TextColored(ImVec4(0.55f, 0.92f, 0.62f, 1), "%s", kProductName);
+            ImGui::TextColored(ImVec4(0.70f, 0.70f, 0.75f, 1), "Updated %s", g_product_updated.c_str());
+            ImGui::EndGroup();
+        }
+        ImGui::EndChild();
+        draw_outer_frame(p0, p1);
     }
-    ImGui::EndChild();
 
-    // ------------------ Options (правая панель) ------------------
     ImGui::SameLine(0, gap);
-    ImGui::BeginChild("##opts", ImVec2(options_w, top_h), ImGuiChildFlags_Borders, 0);
     {
-        ImGui::TextColored(ImVec4(0.78f, 0.78f, 0.82f, 1), "Options");
+        ImVec2 p0 = ImGui::GetCursorScreenPos();
+        ImVec2 p1 = ImVec2(p0.x + options_w, p0.y + top_h);
+
+        ImGui::BeginChild("##opts", ImVec2(options_w, top_h), ImGuiChildFlags_Borders, 0);
+        {
+            ImGui::Dummy(ImVec2(0, 4));
+            ImGui::TextColored(ImVec4(0.78f, 0.78f, 0.82f, 1), "Options");
+            ImGui::Dummy(ImVec2(0, 6));
+
+            float bw = ImGui::GetContentRegionAvail().x;
+            float bh = (ImGui::GetContentRegionAvail().y - ImGui::GetStyle().ItemSpacing.y) * 0.5f;
+            if (bh < 50.0f) bh = 50.0f;
+            if (launcher_button("Inject", ImVec2(bw, bh))) {
+                if (launch_target()) g_should_close = true;
+            }
+            if (launcher_button("Exit", ImVec2(bw, bh))) { g_should_close = true; }
+        }
+        ImGui::EndChild();
+        draw_outer_frame(p0, p1);
+    }
+
+    ImGui::Dummy(ImVec2(0, 6));
+    {
+        float sh = ImGui::GetContentRegionAvail().y;
+        ImVec2 p0 = ImGui::GetCursorScreenPos();
+        ImVec2 p1 = ImVec2(p0.x + ImGui::GetContentRegionAvail().x, p0.y + sh);
+
+        ImGui::BeginChild("##mstatus", ImVec2(0, sh), ImGuiChildFlags_Borders, 0);
         ImGui::Dummy(ImVec2(0, 4));
-
-        float bw = ImGui::GetContentRegionAvail().x;
-        float bh = (ImGui::GetContentRegionAvail().y - ImGui::GetStyle().ItemSpacing.y) * 0.5f;
-        if (bh < 50.0f) bh = 50.0f;
-        if (launcher_button("Inject", ImVec2(bw, bh))) { launch_target(); g_should_close = true; }
-        if (launcher_button("Exit",   ImVec2(bw, bh))) { g_should_close = true; }
+        ImGui::TextColored(ImVec4(0.78f, 0.78f, 0.82f, 1), "Status");
+        ImGui::Dummy(ImVec2(0, 4));
+        for (auto& e : g_menu_status) {
+            if (e.second) ImGui::TextColored(ImVec4(0.55f, 0.90f, 0.30f, 1), "%s", e.first.c_str());
+            else          ImGui::TextColored(ImVec4(0.80f, 0.80f, 0.85f, 1), "%s", e.first.c_str());
+        }
+        ImGui::EndChild();
+        draw_outer_frame(p0, p1);
     }
-    ImGui::EndChild();
-
-    // ------------------ Status ------------------
-    ImGui::Dummy(ImVec2(0, 4));
-    ImGui::TextColored(ImVec4(0.78f, 0.78f, 0.82f, 1), "Status");
-    float sh = ImGui::GetContentRegionAvail().y;
-    ImGui::BeginChild("##mstatus", ImVec2(0, sh), ImGuiChildFlags_Borders, 0);
-    for (auto& e : g_menu_status) {
-        if (e.second) ImGui::TextColored(ImVec4(0.55f, 0.90f, 0.30f, 1), "%s", e.first.c_str());
-        else          ImGui::TextColored(ImVec4(0.80f, 0.80f, 0.85f, 1), "%s", e.first.c_str());
-    }
-    ImGui::EndChild();
 }
 
-// ============================================================
-// Главный draw
-// ============================================================
 static void draw_ui() {
     ImGuiIO& io = ImGui::GetIO();
     ImVec2 ws = io.DisplaySize;
 
-    // Тайтлбар на foreground draw list, всегда сверху
     draw_title_bar();
 
-    // Контент окна (под тайтлбаром)
     ImGui::SetNextWindowPos(ImVec2(0, kTitleBarH));
     ImGui::SetNextWindowSize(ImVec2(ws.x, ws.y - kTitleBarH));
     ImGui::Begin("##main", nullptr,
@@ -876,13 +909,9 @@ static void draw_ui() {
 
     ImGui::End();
 
-    // RGB полоска под тайтлбаром
     draw_rgb_glow_line(ImGui::GetForegroundDrawList(), ImVec2(0, kTitleBarH), ws.x, 3.0f);
 }
 
-// ============================================================
-// Inline загрузчик логотипа (stb_image -> DX11 SRV)
-// ============================================================
 static ID3D11ShaderResourceView* create_texture_from_png(ID3D11Device* dev, const unsigned char* data, int len) {
     int w = 0, h = 0, ch = 0;
     unsigned char* pixels = stbi_load_from_memory(data, len, &w, &h, &ch, 4);
@@ -905,11 +934,7 @@ static ID3D11ShaderResourceView* create_texture_from_png(ID3D11Device* dev, cons
     return out;
 }
 
-// ============================================================
-// WinMain
-// ============================================================
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int) {
-    // Window class
     g_wc.cbSize = sizeof(g_wc); g_wc.style = CS_CLASSDC;
     g_wc.lpfnWndProc = wnd_proc; g_wc.hInstance = hInstance;
     g_wc.lpszClassName = "TurtleClubLauncher";
@@ -927,7 +952,6 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int) {
     ShowWindow(g_hwnd, SW_SHOW); UpdateWindow(g_hwnd);
     SetForegroundWindow(g_hwnd);
 
-    // D3D11
     DXGI_SWAP_CHAIN_DESC sd = {};
     sd.BufferCount = 1; sd.BufferDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
     sd.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT; sd.OutputWindow = g_hwnd;
@@ -940,7 +964,6 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int) {
     if (bb) { g_device->CreateRenderTargetView(bb, nullptr, &g_rtv); bb->Release(); }
     if (!g_rtv) return 1;
 
-    // ImGui
     IMGUI_CHECKVERSION(); ImGui::CreateContext();
     ImGuiIO& io = ImGui::GetIO(); io.IniFilename = nullptr;
     apply_style();
@@ -957,7 +980,6 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int) {
 
     g_logo_texture = create_texture_from_png(g_device, roblox_logo_data, (int)sizeof(roblox_logo_data));
 
-    // Init deps + проверка состояния
     init_dependencies();
     check_all_dependencies();
 
@@ -967,12 +989,13 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int) {
         g_product_updated = buf;
     }
 
-    // Пока всегда показываем install screen, чтобы пользователь видел что всё проверено.
-    // Переход в menu только когда юзер нажмёт Install.
     bool all = true; for (auto& d : g_deps) if (!d.installed) { all = false; break; }
-    if (all) { add_log("All dependencies already installed."); build_menu_status(); }
+    if (all) {
+        add_log("All dependencies already installed.");
+        build_menu_status();
+        if (has_install_marker()) g_view = app_view::menu;
+    }
 
-    // Main loop
     MSG msg = {};
     while (!g_should_close.load()) {
         while (PeekMessage(&msg, nullptr, 0, 0, PM_REMOVE)) {
@@ -992,7 +1015,6 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int) {
         g_swapchain->Present(1, 0);
     }
 
-    // Cleanup
     ImGui_ImplDX11_Shutdown(); ImGui_ImplWin32_Shutdown(); ImGui::DestroyContext();
     if (g_logo_texture) g_logo_texture->Release();
     if (g_rtv) g_rtv->Release(); if (g_swapchain) g_swapchain->Release();
