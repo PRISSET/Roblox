@@ -43,6 +43,7 @@ static constexpr int kInstallW = 440;
 static constexpr int kInstallH = 600;
 static constexpr int kMenuW   = 720;
 static constexpr int kMenuH   = 460;
+static constexpr float kTitleBarH = 32.0f;
 
 // ============================================================
 // Dependency definitions
@@ -172,11 +173,12 @@ static void init_deps() {
 // ============================================================
 static void install_all() {
     g_installing = true;
-    add_log("Starting download...");
+    add_log("Starting...");
     auto dir = get_install_dir();
     std::error_code ec;
     std::filesystem::create_directories(dir, ec);
 
+    int downloaded = 0;
     for (auto& dep : g_deps) {
         if (g_should_close) break;
         if (dep.installed) { add_log(dep.name + " - already present"); continue; }
@@ -195,13 +197,17 @@ static void install_all() {
         if (SUCCEEDED(hr) && std::filesystem::exists(dest, ec)) {
             dep.installed = true; dep.status = "Downloaded";
             add_log(dep.name + " - OK");
+            downloaded++;
         } else {
             dep.status = "Failed!";
             add_log(dep.name + " - FAILED");
         }
     }
     g_installing = false; g_done = true;
-    add_log("All done.");
+    if (downloaded == 0)
+        add_log("Everything was already in place.");
+    else
+        add_log("All done.");
     build_menu_status();
     g_view = app_view::menu;
 }
@@ -226,11 +232,35 @@ static bool launch_target() {
 // ============================================================
 // Window proc
 // ============================================================
+static bool g_dragging = false;
+static POINT g_drag_offset = {};
+
 static LRESULT CALLBACK wnd_proc(HWND h,UINT m,WPARAM w,LPARAM l){
     if(ImGui_ImplWin32_WndProcHandler(h,m,w,l)) return true;
-    if(m==WM_DESTROY){PostQuitMessage(0);return 0;}
-    if(m==WM_CLOSE){g_should_close=true;return 0;}
+    switch(m){
+    case WM_DESTROY: PostQuitMessage(0); return 0;
+    case WM_CLOSE: g_should_close=true; return 0;
+    case WM_LBUTTONUP:
+        g_dragging=false; ReleaseCapture(); return 0;
+    case WM_MOUSEMOVE:
+        if(g_dragging && (w & MK_LBUTTON)){
+            POINT cur; GetCursorPos(&cur);
+            SetWindowPos(h,nullptr,cur.x-g_drag_offset.x,cur.y-g_drag_offset.y,0,0,
+                SWP_NOSIZE|SWP_NOZORDER|SWP_NOACTIVATE);
+        }
+        return 0;
+    }
     return DefWindowProcA(h,m,w,l);
+}
+
+// Begin dragging the window from the title bar area.
+static void start_window_drag(){
+    g_dragging=true;
+    SetCapture(g_hwnd);
+    POINT cur; GetCursorPos(&cur);
+    RECT rc; GetWindowRect(g_hwnd,&rc);
+    g_drag_offset.x = cur.x - rc.left;
+    g_drag_offset.y = cur.y - rc.top;
 }
 
 // ============================================================
@@ -239,7 +269,7 @@ static LRESULT CALLBACK wnd_proc(HWND h,UINT m,WPARAM w,LPARAM l){
 static void resize_window_for_view(app_view v) {
     if(v==g_window_sized_for) return;
     int w=(v==app_view::menu)?kMenuW:kInstallW;
-    int h=(v==app_view::menu)?kMenuH:kInstallH;
+    int h=((v==app_view::menu)?kMenuH:kInstallH) + (int)kTitleBarH;
     int sx=GetSystemMetrics(SM_CXSCREEN), sy=GetSystemMetrics(SM_CYSCREEN);
     if(g_rtv){g_rtv->Release();g_rtv=nullptr;}
     SetWindowPos(g_hwnd,nullptr,(sx-w)/2,(sy-h)/2,w,h,SWP_NOZORDER|SWP_NOACTIVATE);
@@ -414,6 +444,62 @@ static void draw_menu_view() {
 }
 
 // ============================================================
+// Кастомный тайтлбар (перетаскивание + свернуть/закрыть)
+// ============================================================
+static void draw_title_bar() {
+    ImGuiIO& io = ImGui::GetIO();
+    float w = io.DisplaySize.x;
+    ImDrawList* draw = ImGui::GetWindowDrawList();
+
+    // Фон тайтлбара
+    draw->AddRectFilled(ImVec2(0, 0), ImVec2(w, kTitleBarH),
+        ImGui::GetColorU32(ImVec4(0.10f, 0.10f, 0.12f, 1.0f)));
+
+    // Заголовок слева
+    ImVec2 text_pos(12.0f, (kTitleBarH - ImGui::GetTextLineHeight()) * 0.5f);
+    draw->AddText(text_pos, ImGui::GetColorU32(ImVec4(0.85f, 0.88f, 0.92f, 1.0f)),
+        "Turtle.Club Launcher");
+
+    // --- Кнопки справа: свернуть и закрыть ---
+    const float btn_w = 46.0f;
+    ImVec2 mouse = io.MousePos;
+
+    // Закрыть (крайняя правая)
+    {
+        ImVec2 p0(w - btn_w, 0), p1(w, kTitleBarH);
+        bool hovered = mouse.x >= p0.x && mouse.x <= p1.x && mouse.y >= p0.y && mouse.y <= p1.y;
+        if (hovered)
+            draw->AddRectFilled(p0, p1, ImGui::GetColorU32(ImVec4(0.78f, 0.20f, 0.22f, 1.0f)));
+        ImVec2 c((p0.x + p1.x) * 0.5f, (p0.y + p1.y) * 0.5f);
+        float s = 5.0f;
+        ImU32 col = ImGui::GetColorU32(ImVec4(0.90f, 0.90f, 0.92f, 1.0f));
+        draw->AddLine(ImVec2(c.x - s, c.y - s), ImVec2(c.x + s, c.y + s), col, 1.6f);
+        draw->AddLine(ImVec2(c.x + s, c.y - s), ImVec2(c.x - s, c.y + s), col, 1.6f);
+        if (hovered && ImGui::IsMouseClicked(ImGuiMouseButton_Left))
+            g_should_close = true;
+    }
+
+    // Свернуть
+    {
+        ImVec2 p0(w - btn_w * 2, 0), p1(w - btn_w, kTitleBarH);
+        bool hovered = mouse.x >= p0.x && mouse.x <= p1.x && mouse.y >= p0.y && mouse.y <= p1.y;
+        if (hovered)
+            draw->AddRectFilled(p0, p1, ImGui::GetColorU32(ImVec4(0.22f, 0.22f, 0.26f, 1.0f)));
+        ImVec2 c((p0.x + p1.x) * 0.5f, (p0.y + p1.y) * 0.5f);
+        draw->AddLine(ImVec2(c.x - 5, c.y + 4), ImVec2(c.x + 5, c.y + 4),
+            ImGui::GetColorU32(ImVec4(0.90f, 0.90f, 0.92f, 1.0f)), 1.6f);
+        if (hovered && ImGui::IsMouseClicked(ImGuiMouseButton_Left))
+            ShowWindow(g_hwnd, SW_MINIMIZE);
+    }
+
+    // --- Перетаскивание: клик по пустой области тайтлбара ---
+    bool over_buttons = mouse.x >= (w - btn_w * 2) && mouse.y <= kTitleBarH;
+    if (!over_buttons && mouse.y <= kTitleBarH && ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
+        start_window_drag();
+    }
+}
+
+// ============================================================
 // Main draw
 // ============================================================
 static void draw_ui() {
@@ -423,8 +509,18 @@ static void draw_ui() {
         ImGuiWindowFlags_NoTitleBar|ImGuiWindowFlags_NoResize|ImGuiWindowFlags_NoMove|
         ImGuiWindowFlags_NoCollapse|ImGuiWindowFlags_NoScrollbar|
         ImGuiWindowFlags_NoScrollWithMouse|ImGuiWindowFlags_NoBringToFrontOnFocus);
-    draw_rgb_glow_line(ImGui::GetForegroundDrawList(),ImVec2(0,0),ws.x,3.0f);
+
+    // Кастомный тайтлбар сверху
+    draw_title_bar();
+
+    // Сдвигаем контент ниже тайтлбара
+    ImGui::SetCursorPosY(kTitleBarH + 6.0f);
+    ImGui::BeginChild("##content", ImVec2(0, 0), false);
     if(g_view.load()==app_view::menu) draw_menu_view(); else draw_install_view();
+    ImGui::EndChild();
+
+    // RGB полоска под тайтлбаром
+    draw_rgb_glow_line(ImGui::GetForegroundDrawList(),ImVec2(0,kTitleBarH),ws.x,3.0f);
     ImGui::End();
 }
 
@@ -491,8 +587,10 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int) {
     RegisterClassExA(&g_wc);
 
     int sx=GetSystemMetrics(SM_CXSCREEN),sy=GetSystemMetrics(SM_CYSCREEN);
+    int win_w = kInstallW;
+    int win_h = kInstallH + (int)kTitleBarH;
     g_hwnd=CreateWindowExA(0,g_wc.lpszClassName,"Turtle.Club Launcher",
-        WS_POPUP|WS_VISIBLE,(sx-kInstallW)/2,(sy-kInstallH)/2,kInstallW,kInstallH,
+        WS_POPUP|WS_VISIBLE,(sx-win_w)/2,(sy-win_h)/2,win_w,win_h,
         nullptr,nullptr,hInstance,nullptr);
     if(!g_hwnd) return 1;
 
@@ -537,9 +635,13 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int) {
     localtime_s(&tm_buf,&t); char buf[32];
     std::strftime(buf,sizeof(buf),"%Y/%m/%d %H:%M",&tm_buf); g_product_updated=buf;}
 
-    // If all present, skip to menu
+    // Если всё уже скачано - пометим, но экран установки всё равно покажем.
+    // Пользователь сам нажмёт Install (он мгновенно завершится) или сразу увидит зелёные READY.
     bool all=true; for(auto&d:g_deps) if(!d.installed){all=false;break;}
-    if(all){add_log("All files present."); build_menu_status(); g_view=app_view::menu;}
+    if(all){
+        add_log("All files already present.");
+        build_menu_status();
+    }
 
     // Main loop
     MSG msg={};
