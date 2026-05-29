@@ -576,9 +576,9 @@ static void apply_style() {
     s.WindowBorderSize = 0; s.FrameBorderSize = 0; s.ChildBorderSize = 1;
     s.WindowPadding = ImVec2(18, 16); s.ItemSpacing = ImVec2(10, 10); s.FramePadding = ImVec2(10, 6);
     s.ScrollbarSize = 8.0f;
-    s.Colors[ImGuiCol_WindowBg] = ImVec4(0.10f, 0.10f, 0.11f, 1);
-    s.Colors[ImGuiCol_ChildBg]  = ImVec4(0.04f, 0.04f, 0.04f, 1);
-    s.Colors[ImGuiCol_Border]   = ImVec4(0.30f, 0.30f, 0.32f, 1.0f);
+    s.Colors[ImGuiCol_WindowBg] = ImVec4(0.075f, 0.075f, 0.075f, 1);
+    s.Colors[ImGuiCol_ChildBg]  = ImVec4(0.094f, 0.094f, 0.094f, 1);
+    s.Colors[ImGuiCol_Border]   = ImVec4(0.094f, 0.094f, 0.094f, 1.0f);
     s.Colors[ImGuiCol_Button]   = ImVec4(0.16f, 0.52f, 0.32f, 1);
     s.Colors[ImGuiCol_ButtonHovered] = ImVec4(0.20f, 0.64f, 0.40f, 1);
     s.Colors[ImGuiCol_ButtonActive]  = ImVec4(0.13f, 0.44f, 0.27f, 1);
@@ -620,7 +620,7 @@ static void draw_rgb_glow_line(ImDrawList* draw, ImVec2 pos, float width, float 
 
 static void draw_outer_frame(ImVec2 p0, ImVec2 p1) {
     ImDrawList* dl = ImGui::GetWindowDrawList();
-    ImU32 border = ImGui::GetColorU32(ImVec4(0.28f, 0.28f, 0.30f, 1.0f));
+    ImU32 border = ImGui::GetColorU32(ImVec4(0.094f, 0.094f, 0.094f, 1.0f));
     dl->AddRect(p0, p1, border, 0.0f, 0, 1.0f);
 }
 
@@ -1029,7 +1029,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int) {
         ImGui_ImplDX11_NewFrame(); ImGui_ImplWin32_NewFrame(); ImGui::NewFrame();
         draw_ui();
         ImGui::Render();
-        const float clear[] = { 0.04f, 0.04f, 0.04f, 1.0f };
+        const float clear[] = { 0.075f, 0.075f, 0.075f, 1.0f };
         g_context->OMSetRenderTargets(1, &g_rtv, nullptr);
         g_context->ClearRenderTargetView(g_rtv, clear);
         ImGui_ImplDX11_RenderDrawData(ImGui::GetDrawData());
