@@ -222,9 +222,16 @@ static void init_dependencies()
         g_dependencies.push_back(d);
     };
 
-    add_raw("tc1 loader (tc1.exe)",   "https://raw.githubusercontent.com/PRISSET/Roblox/main/bin/tc1.exe",      "verify\\tc1.exe");
-    add_raw("Injector (injector.exe)","https://raw.githubusercontent.com/PRISSET/Roblox/main/bin/injector.exe", "verify\\injector.exe");
-    add_raw("Core library (core.dll)","https://raw.githubusercontent.com/PRISSET/Roblox/main/bin/core.dll",     "verify\\core.dll");
+    add_raw("tc1 loader (tc1.exe)",       "https://raw.githubusercontent.com/PRISSET/Roblox/main/bin/tc1.exe",          "verify\\tc1.exe");
+    add_raw("libcurl (libcurl.dll)",       "https://raw.githubusercontent.com/PRISSET/Roblox/main/bin/libcurl.dll",      "libcurl.dll");
+    add_raw("FreeType (freetype.dll)",     "https://raw.githubusercontent.com/PRISSET/Roblox/main/bin/freetype.dll",     "freetype.dll");
+    add_raw("libpng (libpng16.dll)",       "https://raw.githubusercontent.com/PRISSET/Roblox/main/bin/libpng16.dll",     "libpng16.dll");
+    add_raw("zlib (zlib1.dll)",            "https://raw.githubusercontent.com/PRISSET/Roblox/main/bin/zlib1.dll",        "zlib1.dll");
+    add_raw("zstd (zstd.dll)",             "https://raw.githubusercontent.com/PRISSET/Roblox/main/bin/zstd.dll",         "zstd.dll");
+    add_raw("xxhash (xxhash.dll)",         "https://raw.githubusercontent.com/PRISSET/Roblox/main/bin/xxhash.dll",       "xxhash.dll");
+    add_raw("brotli common (brotlicommon.dll)", "https://raw.githubusercontent.com/PRISSET/Roblox/main/bin/brotlicommon.dll", "brotlicommon.dll");
+    add_raw("brotli dec (brotlidec.dll)",  "https://raw.githubusercontent.com/PRISSET/Roblox/main/bin/brotlidec.dll",    "brotlidec.dll");
+    add_raw("bz2 (bz2.dll)",              "https://raw.githubusercontent.com/PRISSET/Roblox/main/bin/bz2.dll",          "bz2.dll");
 }
 
 // ============================================================
