@@ -572,7 +572,7 @@ static void resize_window_for_view(app_view v) {
 static void apply_style() {
     ImGui::StyleColorsDark();
     ImGuiStyle& s = ImGui::GetStyle();
-    s.WindowRounding = 0; s.FrameRounding = 4; s.GrabRounding = 4; s.ChildRounding = 4;
+    s.WindowRounding = 0; s.FrameRounding = 4; s.GrabRounding = 4; s.ChildRounding = 0;
     s.WindowBorderSize = 0; s.FrameBorderSize = 0; s.ChildBorderSize = 1;
     s.WindowPadding = ImVec2(18, 16); s.ItemSpacing = ImVec2(10, 10); s.FramePadding = ImVec2(10, 6);
     s.ScrollbarSize = 8.0f;
@@ -622,8 +622,8 @@ static void draw_outer_frame(ImVec2 p0, ImVec2 p1) {
     ImDrawList* dl = ImGui::GetWindowDrawList();
     ImU32 outer  = ImGui::GetColorU32(ImVec4(0.02f, 0.02f, 0.03f, 1.0f));
     ImU32 inner  = ImGui::GetColorU32(ImVec4(0.30f, 0.30f, 0.34f, 1.0f));
-    dl->AddRect(p0, p1, outer, 4.0f, 0, 1.0f);
-    dl->AddRect(ImVec2(p0.x + 1, p0.y + 1), ImVec2(p1.x - 1, p1.y - 1), inner, 4.0f, 0, 1.0f);
+    dl->AddRect(p0, p1, outer, 0.0f, 0, 1.0f);
+    dl->AddRect(ImVec2(p0.x + 1, p0.y + 1), ImVec2(p1.x - 1, p1.y - 1), inner, 0.0f, 0, 1.0f);
 }
 
 static void draw_status_badge(const char* text, ImVec4 bg, ImVec4 fg) {
