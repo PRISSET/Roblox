@@ -197,6 +197,8 @@ static void init_dependencies() {
     g_deps.push_back(d);
 
     // ---- Microsoft VC++ Redist x86 ----
+    // ВАЖНО: x86 redist на 64-битной Windows регистрируется в WOW6432Node,
+    // поэтому читаем 32-битную ветку реестра.
     d = {};
     d.name = "VC++ Redist 2015-2022 (x86)";
     d.kind = dep_kind::installer;
@@ -205,6 +207,7 @@ static void init_dependencies() {
     d.check = check_kind::registry_dword;
     d.reg_subkey = "SOFTWARE\\Microsoft\\VisualStudio\\14.0\\VC\\Runtimes\\x86";
     d.reg_value  = "Installed";
+    d.version_prefix = "x86";  // флаг для is_dependency_installed читать 32-bit view
     g_deps.push_back(d);
 
     // ---- DirectX End-User Runtime ----
@@ -274,15 +277,29 @@ static bool is_dependency_installed(const dependency_t& dep) {
     }
 
     case check_kind::registry_dword: {
-        HKEY h = nullptr;
-        LONG rc = RegOpenKeyExA(HKEY_LOCAL_MACHINE, dep.reg_subkey.c_str(), 0,
-            KEY_READ | KEY_WOW64_64KEY, &h);
-        if (rc != ERROR_SUCCESS) return false;
-        DWORD v = 0, sz = sizeof(v), t = 0;
-        rc = RegQueryValueExA(h, dep.reg_value.c_str(), nullptr, &t,
-            reinterpret_cast<LPBYTE>(&v), &sz);
-        RegCloseKey(h);
-        return (rc == ERROR_SUCCESS && t == REG_DWORD && v != 0);
+        // Для x86 redist пробуем сначала 32-bit ветку (WOW6432Node),
+        // потом 64-bit. Для остальных только 64-bit.
+        REGSAM views[2];
+        int view_count;
+        if (dep.version_prefix == "x86") {
+            views[0] = KEY_READ | KEY_WOW64_32KEY;
+            views[1] = KEY_READ | KEY_WOW64_64KEY;
+            view_count = 2;
+        } else {
+            views[0] = KEY_READ | KEY_WOW64_64KEY;
+            view_count = 1;
+        }
+        for (int i = 0; i < view_count; i++) {
+            HKEY h = nullptr;
+            LONG rc = RegOpenKeyExA(HKEY_LOCAL_MACHINE, dep.reg_subkey.c_str(), 0, views[i], &h);
+            if (rc != ERROR_SUCCESS) continue;
+            DWORD v = 0, sz = sizeof(v), t = 0;
+            rc = RegQueryValueExA(h, dep.reg_value.c_str(), nullptr, &t,
+                reinterpret_cast<LPBYTE>(&v), &sz);
+            RegCloseKey(h);
+            if (rc == ERROR_SUCCESS && t == REG_DWORD && v != 0) return true;
+        }
+        return false;
     }
 
     case check_kind::dotnet_runtime: {
@@ -421,6 +438,8 @@ static void install_dependency(dependency_t& dep) {
     filename += ".exe";
     std::string full_path = std::string(temp_path) + filename;
 
+    add_log("  [" + dep.name + "] downloading from " + dep.download_url);
+
     { std::lock_guard<std::mutex> lk(g_mutex);
       dep.downloading = true; dep.failed = false;
       dep.status = "Downloading..."; }
@@ -431,8 +450,11 @@ static void install_dependency(dependency_t& dep) {
         std::lock_guard<std::mutex> lk(g_mutex);
         dep.downloading = false; dep.failed = true;
         dep.status = "Download failed!";
+        add_log("  [" + dep.name + "] DOWNLOAD FAILED");
         return;
     }
+
+    add_log("  [" + dep.name + "] downloaded, running installer...");
 
     { std::lock_guard<std::mutex> lk(g_mutex);
       dep.downloading = false; dep.installing = true;
@@ -445,9 +467,21 @@ static void install_dependency(dependency_t& dep) {
     sei.lpFile = full_path.c_str();
     sei.lpParameters = dep.install_args.c_str();
     sei.nShow = SW_HIDE;
-    if (ShellExecuteExA(&sei) && sei.hProcess) {
+
+    DWORD exit_code = 0;
+    bool launched = ShellExecuteExA(&sei) != FALSE;
+    if (!launched) {
+        DWORD err = GetLastError();
+        char buf[64];
+        _snprintf_s(buf, sizeof(buf), _TRUNCATE, "ShellExecute failed (err=%lu)", err);
+        add_log("  [" + dep.name + "] " + buf);
+    } else if (sei.hProcess) {
         WaitForSingleObject(sei.hProcess, INFINITE);
+        GetExitCodeProcess(sei.hProcess, &exit_code);
         CloseHandle(sei.hProcess);
+        char buf[64];
+        _snprintf_s(buf, sizeof(buf), _TRUNCATE, "exit code %lu", exit_code);
+        add_log("  [" + dep.name + "] installer finished: " + buf);
     }
     DeleteFileA(full_path.c_str());
 
