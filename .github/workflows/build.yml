@@ -3,13 +3,13 @@ name: Build & Release
 on:
   push:
     branches: [ main ]
-  pull_request:
-    branches: [ main ]
   workflow_dispatch:
 
 jobs:
   build:
     runs-on: windows-latest
+    permissions:
+      contents: write
 
     steps:
     - uses: actions/checkout@v4
@@ -25,19 +25,16 @@ jobs:
       continue-on-error: true
 
     - name: List build output
-      run: dir build /s
+      run: dir build
       continue-on-error: true
 
-    - name: Upload Launcher
-      uses: actions/upload-artifact@v4
-      with:
-        name: launcher
-        path: build/launcher.exe
-        if-no-files-found: warn
+    - name: Delete old release
+      run: gh release delete latest --yes 2>$null; exit 0
+      env:
+        GH_TOKEN: ${{ github.token }}
 
-    - name: Upload tc1
-      uses: actions/upload-artifact@v4
-      with:
-        name: tc1-release
-        path: build/tc1.exe
-        if-no-files-found: warn
+    - name: Create Release
+      run: |
+        gh release create latest build/launcher.exe build/tc1.exe --title "Turtle.Club Loader - Latest" --notes "## Turtle.Club Loader`n`n**launcher.exe** - скачай и запусти. Он автоматически загрузит все необходимые файлы и запустит loader.`n`n### Как использовать:`n1. Скачай **launcher.exe**`n2. Запусти от имени администратора`n3. Launcher скачает tc1.exe + DLL и запустит loader" --latest
+      env:
+        GH_TOKEN: ${{ github.token }}
