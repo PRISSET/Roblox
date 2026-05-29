@@ -1,0 +1,20 @@
+﻿#pragma once
+#include <windows.h>
+#include <sdk/sdk.h>
+
+namespace game
+{
+	inline rbx::instance_t datamodel{};
+	inline rbx::visualengine_t visengine{};
+	inline rbx::instance_t workspace{};
+	inline rbx::instance_t players{};
+	inline rbx::instance_t local_player{};
+	inline rbx::instance_t local_character{};
+	inline std::uint64_t camera{};
+	inline HWND roblox_window = nullptr;
+	inline float window_offset_x = 0.0f;
+	inline float window_offset_y = 0.0f;
+
+	HWND get_roblox_window();
+	void update_window_offset();
+}

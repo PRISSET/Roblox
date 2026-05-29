@@ -1,0 +1,33 @@
+name: Build tc1.exe
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Setup MSBuild
+      uses: microsoft/setup-msbuild@v2
+
+    - name: Build Release x64
+      run: msbuild tc.sln /p:Configuration=Release /p:Platform=x64 /m
+
+    - name: Upload tc1.exe artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: tc1-release
+        path: build/tc1.exe
+
+    - name: Upload all DLLs
+      uses: actions/upload-artifact@v4
+      with:
+        name: runtime-dlls
+        path: build/*.dll
