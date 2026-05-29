@@ -576,9 +576,9 @@ static void apply_style() {
     s.WindowBorderSize = 0; s.FrameBorderSize = 0; s.ChildBorderSize = 1;
     s.WindowPadding = ImVec2(18, 16); s.ItemSpacing = ImVec2(10, 10); s.FramePadding = ImVec2(10, 6);
     s.ScrollbarSize = 8.0f;
-    s.Colors[ImGuiCol_WindowBg] = ImVec4(0.11f, 0.11f, 0.12f, 1);
-    s.Colors[ImGuiCol_ChildBg]  = ImVec4(0.05f, 0.05f, 0.06f, 1);
-    s.Colors[ImGuiCol_Border]   = ImVec4(0.28f, 0.28f, 0.30f, 1.0f);
+    s.Colors[ImGuiCol_WindowBg] = ImVec4(0.10f, 0.10f, 0.11f, 1);
+    s.Colors[ImGuiCol_ChildBg]  = ImVec4(0.04f, 0.04f, 0.04f, 1);
+    s.Colors[ImGuiCol_Border]   = ImVec4(0.30f, 0.30f, 0.32f, 1.0f);
     s.Colors[ImGuiCol_Button]   = ImVec4(0.16f, 0.52f, 0.32f, 1);
     s.Colors[ImGuiCol_ButtonHovered] = ImVec4(0.20f, 0.64f, 0.40f, 1);
     s.Colors[ImGuiCol_ButtonActive]  = ImVec4(0.13f, 0.44f, 0.27f, 1);
@@ -783,14 +783,14 @@ static bool launcher_button(const char* label, const ImVec2& size) {
 
     ImU32 base, top, bot;
     if (active) {
-        top = ImGui::GetColorU32(ImVec4(0.09f, 0.09f, 0.10f, 1.0f));
-        bot = ImGui::GetColorU32(ImVec4(0.13f, 0.13f, 0.14f, 1.0f));
+        top = ImGui::GetColorU32(ImVec4(0.10f, 0.10f, 0.11f, 1.0f));
+        bot = ImGui::GetColorU32(ImVec4(0.14f, 0.14f, 0.15f, 1.0f));
     } else if (hovered) {
-        top = ImGui::GetColorU32(ImVec4(0.22f, 0.22f, 0.24f, 1.0f));
+        top = ImGui::GetColorU32(ImVec4(0.20f, 0.20f, 0.22f, 1.0f));
         bot = ImGui::GetColorU32(ImVec4(0.13f, 0.13f, 0.14f, 1.0f));
     } else {
-        top = ImGui::GetColorU32(ImVec4(0.18f, 0.18f, 0.20f, 1.0f));
-        bot = ImGui::GetColorU32(ImVec4(0.10f, 0.10f, 0.11f, 1.0f));
+        top = ImGui::GetColorU32(ImVec4(0.16f, 0.16f, 0.18f, 1.0f));
+        bot = ImGui::GetColorU32(ImVec4(0.11f, 0.11f, 0.12f, 1.0f));
     }
 
     dl->AddRectFilledMultiColor(p0, p1, top, top, bot, bot);
